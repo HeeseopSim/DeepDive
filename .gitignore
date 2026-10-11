@@ -6,3 +6,6 @@ tools/globalTypes.d.luau
 *.rbxl.lock
 *.rbxlx.lock
 .DS_Store
+
+# user-supplied BGM is installed locally, never committed
+HL/media/
