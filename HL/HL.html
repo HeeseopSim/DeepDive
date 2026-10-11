@@ -133,8 +133,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,410px);gap:18
 .cl.plan{color:#1b1236}
 .cl.fillin{animation:lbl .3s ease var(--dl) both}
 @keyframes lbl{from{opacity:0}to{opacity:1}}
-.now{z-index:6;position:absolute;width:2px;margin-left:-1px;background:#ff4d8d;box-shadow:0 0 10px 2px rgba(255,77,141,.8);z-index:2;pointer-events:none;border-radius:2px}
-.now::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:#ff4d8d}
+.now{position:absolute;width:5px;margin-left:-2.5px;background:#fff;box-shadow:0 0 0 2px #000;z-index:20;pointer-events:none}
 
 /* todo */
 #addForm{display:flex;gap:8px;padding:0 16px}
@@ -402,11 +401,12 @@ html input,html textarea{cursor:text !important}
 .sw{border:2.5px solid #000;box-shadow:0 0 0 1.5px #fff}
 .sw.on{box-shadow:0 0 0 2.5px #fff,0 0 0 4px #000}
 .blk{position:absolute;inset:0;pointer-events:none}
-.blk-ol{position:absolute;inset:0}
 .ol{position:absolute;background:#000;box-shadow:0 0 0 2.5px #000}
 .ol.fillin{animation:glowin var(--dur) steps(var(--n),end) var(--dl) both}
-.blk.plan{z-index:1}
-.blk.rec{z-index:3}
+.blk.olw.plan{z-index:1}
+.blk.olw.rec{z-index:3}
+.blk.plan{z-index:2}
+.blk.rec{z-index:4}
 .blk .run{z-index:auto}
 #addIn{font-size:17.5px;padding:14px 16px}
 #addForm button{font-size:16px;padding:0 20px}
@@ -495,7 +495,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.9</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.0</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -692,11 +692,12 @@ for(let h=0;h<24;h++){
 const layer=document.createElement('div');layer.className='layer';grid.appendChild(layer);
 const nowEl=document.createElement('div');nowEl.className='now';nowEl.style.display='none';layer.appendChild(nowEl);
 
+let OLW={};
 function addBlock(b,layerName,plans,anim,extra){
   const rowH=100/24, sj=subj(b.k);
   const tx=lum(sj.color)>.6?'#1a1033':'#fff';
   const wrap=document.createElement('div');wrap.className='blk '+layerName;layer.appendChild(wrap);
-  const olWrap=document.createElement('div');olWrap.className='blk-ol';wrap.appendChild(olWrap);
+  const olWrap=OLW[layerName];
   const mk=(cls,r,cs,ce,parent)=>{
     const el=document.createElement('div');
     el.className=cls;
@@ -736,6 +737,7 @@ function addBlock(b,layerName,plans,anim,extra){
 }
 function renderBlocks(){
   layer.querySelectorAll('.blk,.run,.glow,.pstrip,.cl').forEach(e=>e.remove());
+  OLW={};['plan','rec'].forEach(n=>{const w=document.createElement('div');w.className='blk olw '+n;layer.appendChild(w);OLW[n]=w});
   const d=getDay(false);
   d.plans.forEach(b=>addBlock(b,'plan',null,b.id===lastAdded));
   d.recs.forEach(b=>addBlock(b,'rec',d.plans,b.id===lastAdded));
