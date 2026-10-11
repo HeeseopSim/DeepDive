@@ -500,7 +500,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.6</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.7</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -518,7 +518,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <section class="panel" id="ttPanel">
     <div class="p-head">
       <h2>타임테이블</h2>
-      <div class="legend"><span><i class="lp"></i>예정 · 우클릭 드래그</span><span><i class="lr"></i>기록 · 좌클릭 드래그</span><span>Shift+드래그 = 1분 단위</span><span><i class="mkg"></i>Shift+클릭 = 시작 <i class="mkb"></i>끝 책갈피</span></div>
+      <div class="legend"><span><i class="lp"></i>예정 · 우클릭 드래그</span><span><i class="lr"></i>기록 · 좌클릭 드래그</span><span>드래그 = 1분 단위</span><span><i class="mkg"></i>Shift+클릭 = 시작 <i class="mkb"></i>끝 깃발</span></div>
       <div class="sums"><span class="sum p">예정<b id="sumPlan">0분</b></span><span class="sum r">기록<b id="sumRec">0분</b></span></div>
     </div>
     <div class="subbar" id="subbar"><div class="subchips" id="subchips"></div></div>
@@ -778,7 +778,7 @@ const minAt=e=>{
   const x=clamp((e.clientX-r.left)/r.width,0,.99999), y=clamp((e.clientY-r.top)/r.height,0,.99999);
   return Math.floor(y*24)*60+Math.floor(x*60);
 };
-const rangeOf=(m1,m2,fine)=>{
+const rangeOf=(m1,m2,fine=true)=>{
   const lo=Math.min(m1,m2),hi=Math.max(m1,m2);
   if(fine)return{a:lo,b:Math.max(hi,lo+1)};
   return{a:Math.floor(lo/10)*10,b:Math.floor(hi/10)*10+10};
@@ -798,10 +798,10 @@ window.addEventListener('mousemove',e=>{
   const r=ttScroll.getBoundingClientRect();
   if(e.clientY<r.top+30)ttScroll.scrollTop-=14;else if(e.clientY>r.bottom-30)ttScroll.scrollTop+=14;
   const m=minAt(e);
-  const rg=rangeOf(drag.a,m,e.shiftKey),r0=rangeOf(drag.a,drag.a,false);
-  if(m!==drag.b||e.shiftKey!==drag.fine){
-    drag.b=m;drag.fine=e.shiftKey;
-    if(rg.a!==r0.a||rg.b!==r0.b)drag.moved=true;
+  const rg=rangeOf(drag.a,m,true);
+  if(m!==drag.b){
+    drag.b=m;
+    if(m!==drag.a)drag.moved=true;
     preview={layer:drag.layer,a:rg.a,b:rg.b,k:db.active};renderBlocks();
   }
 });
@@ -813,7 +813,7 @@ window.addEventListener('mouseup',e=>{
   const hit=!d.moved&&arr.find(x=>d.a>=x.s&&d.a<x.e);
   if(hit){preview=null;renderBlocks();openPop(e,{layer:d.layer,edit:hit})}
   else{
-    const rg=d.moved?rangeOf(d.a,d.b,e.shiftKey):rangeOf(d.a,d.a,false);
+    const rg=d.moved?rangeOf(d.a,d.b,true):rangeOf(d.a,d.a,false);
     preview={layer:d.layer,a:rg.a,b:rg.b,k:db.active};renderBlocks();openPop(e,{layer:d.layer,a:rg.a,b:rg.b});
   }
 });
@@ -825,11 +825,8 @@ function bookmark(m,ev){
   if(marks.key!==curKey)marks={s:null,e:null,key:curKey};
   if(marks.s==null||marks.e!=null){marks={s:m,e:null,key:curKey};renderBlocks();return}
   if(m===marks.s){clearMarks();renderBlocks();return}
-  const a=Math.min(marks.s,m),b=Math.max(marks.s,m);
-  marks={s:a,e:b,key:curKey};
-  preview={layer:'rec',a,b,k:db.active};
+  marks={s:Math.min(marks.s,m),e:Math.max(marks.s,m),key:curKey};
   renderBlocks();
-  openPop(ev,{layer:'rec',a,b});
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&marks.s!=null&&pop.classList.contains('hidden')){clearMarks();renderBlocks()}});
 
@@ -876,8 +873,7 @@ function buildPopSubs(){
 function closePop(){
   if(pop.classList.contains('hidden'))return;
   pop.classList.add('hidden');popCtx=null;
-  const had=marks.s!=null;clearMarks();
-  if(preview||had){preview=null;renderBlocks()}
+  if(preview){preview=null;renderBlocks()}
 }
 function commitPop(){
   if(!popCtx)return;
@@ -890,7 +886,7 @@ function commitPop(){
   if(popCtx.edit){d[oldKey]=d[oldKey].filter(x=>x!==popCtx.edit);id=popCtx.edit.id}
   const nb={id:id||uid(),s,e,t,k};
   d[key]=placeBlock(d[key],nb);lastAdded=nb.id;
-  db.active=k;save();preview=null;popCtx=null;pop.classList.add('hidden');clearMarks();renderSubbar();renderBlocks();
+  db.active=k;save();preview=null;popCtx=null;pop.classList.add('hidden');renderSubbar();renderBlocks();
 }
 $('#popOk').onclick=commitPop;
 $('#popNo').onclick=closePop;
