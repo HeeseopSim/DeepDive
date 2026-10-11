@@ -119,9 +119,9 @@ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,410px);gap:18
 .layer{position:absolute;inset:0;pointer-events:none}
 .run{position:absolute;--c:#ff3347;--tx:#fff}
 .run.plan{z-index:1;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 58%,#fff),color-mix(in srgb,var(--c) 72%,#fff))}
-.glow.plan{z-index:0;box-shadow:0 0 8px 1px color-mix(in srgb,var(--c) 55%,transparent),0 0 22px 4px color-mix(in srgb,var(--c) 35%,transparent);filter:saturate(1.3) brightness(1.1)}
+.glow.plan{z-index:0;box-shadow:0 0 4px 0 color-mix(in srgb,var(--c) 45%,transparent),0 0 8px 1px color-mix(in srgb,var(--c) 22%,transparent);filter:saturate(1.2) brightness(1.05)}
 .run.rec{z-index:3;background:var(--c);filter:saturate(1.8) brightness(1.3)}
-.glow{position:absolute;z-index:2;pointer-events:none;box-shadow:0 0 6px 1px var(--c),0 0 18px 3px var(--c),0 0 40px 8px var(--c),0 0 64px 12px color-mix(in srgb,var(--c) 55%,transparent);filter:saturate(1.6) brightness(1.2)}
+.glow{position:absolute;z-index:2;pointer-events:none;box-shadow:0 0 3px 0 var(--c),0 0 9px 1px color-mix(in srgb,var(--c) 65%,transparent);filter:saturate(1.5) brightness(1.15)}
 .pstrip{position:absolute;z-index:4;height:4px;pointer-events:none;background:color-mix(in srgb,var(--pc) 35%,#fff);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 
 .run.fillin{animation:runin var(--dur) steps(var(--n),end) var(--dl) both}
@@ -401,7 +401,10 @@ html input,html textarea{cursor:text !important}
 .sub.on{background:color-mix(in srgb,var(--c) 40%,#0a0204);border-color:#000;box-shadow:0 0 0 2px #fff,3px 3px 0 var(--c)}
 .sw{border:2.5px solid #000;box-shadow:0 0 0 1.5px #fff}
 .sw.on{box-shadow:0 0 0 2.5px #fff,0 0 0 4px #000}
-.blk{position:absolute;inset:0;pointer-events:none;filter:drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000) drop-shadow(0 -2px 0 #000) drop-shadow(1.5px 1.5px 0 #000) drop-shadow(-1.5px 1.5px 0 #000) drop-shadow(1.5px -1.5px 0 #000) drop-shadow(-1.5px -1.5px 0 #000)}
+.blk{position:absolute;inset:0;pointer-events:none}
+.blk-ol{position:absolute;inset:0}
+.ol{position:absolute;background:#000;box-shadow:0 0 0 2.5px #000}
+.ol.fillin{animation:glowin var(--dur) steps(var(--n),end) var(--dl) both}
 .blk.plan{z-index:1}
 .blk.rec{z-index:3}
 .blk .run{z-index:auto}
@@ -456,6 +459,13 @@ html input,html textarea{cursor:text !important}
 .dd-chip:hover{background:rgba(70,6,14,.85)}
 .dd-label{background:rgba(20,2,6,.6);border-radius:8px}
 
+@keyframes wob{0%{rotate:-.8deg;translate:0 -.6px}100%{rotate:.8deg;translate:0 .6px}}
+.chip,.tabs button,.ic,.sub,.dd-chip,.seg2 button,#addForm button,.dd-add,.pop-btns button,.sp-btns button{animation:wob 2.6s ease-in-out infinite alternate}
+.tabs button:nth-child(2n),.chip:nth-child(2n),.sub:nth-child(2n),.dd-chip:nth-child(2n),.seg2 button:nth-child(2n){animation-duration:3.1s;animation-delay:-.9s}
+.tabs button:nth-child(3n),.chip:nth-child(3n),.sub:nth-child(3n),.dd-chip:nth-child(3n){animation-duration:2.3s;animation-delay:-1.7s}
+#clock{position:fixed;right:22px;bottom:16px;z-index:40;font-family:var(--disp);font-size:26px;letter-spacing:1.5px;color:#fff;padding:3px 16px 4px;background:rgba(10,2,5,.82);border:2.5px solid #000;box-shadow:3px 3px 0 #ff2a3a,0 0 0 2px #fff;transform:skewX(-8deg);font-variant-numeric:tabular-nums;pointer-events:none}
+#clock small{font-size:.62em;opacity:.85;margin-left:2px}
+
 /* persona-style backdrop */
 body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bgimg,none) center bottom/cover no-repeat;opacity:1;filter:brightness(var(--bgb,1.18)) saturate(1.2) contrast(1.12);pointer-events:none}
 body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(2,0,1,.3) 0%,rgba(8,0,2,.1) 45%,rgba(150,0,16,.2) 100%)}
@@ -476,7 +486,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.0</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.1</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -582,7 +592,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <div class="sp-title">🎛 화면 조절</div>
   <div class="sp-row"><span>패널 투명도</span><input type="range" id="vPa" min="0" max="100" step="1"><b id="vPaN">0</b></div>
   <div class="sp-row"><span>글자·UI 크기</span><input type="range" id="vScale" min="80" max="150" step="1"><b id="vScaleN">0</b></div>
-  <div class="sp-row"><span>배경 밝기</span><input type="range" id="vBgb" min="40" max="180" step="1"><b id="vBgbN">0</b></div>
+  <div class="sp-row"><span>배경 밝기</span><input type="range" id="vBgb" min="0" max="180" step="1"><b id="vBgbN">0</b></div>
   <div class="sp-btns"><button id="vReset">기본값으로</button></div>
   <div class="sp-note">투명도를 올리면 타임테이블·달력·할 일 패널 뒤로 배경 그림이 더 잘 보여요.</div>
 </div>
@@ -594,6 +604,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <div class="sp-note" id="bgmNote"></div>
   <input type="file" id="bgmFile" accept="audio/*,.mp3" hidden>
 </div>
+<div id="clock"></div>
 <div id="toast"></div>
 
 <script>
@@ -667,6 +678,7 @@ function addBlock(b,layerName,planAt,anim,extra){
   const rowH=100/24, sj=subj(b.k);
   const tx=lum(sj.color)>.6?'#1a1033':'#fff';
   const wrap=document.createElement('div');wrap.className='blk '+layerName;layer.appendChild(wrap);
+  const olWrap=document.createElement('div');olWrap.className='blk-ol';wrap.appendChild(olWrap);
   const mk=(cls,r,cs,ce,parent)=>{
     const el=document.createElement('div');
     el.className=cls;
@@ -684,6 +696,7 @@ function addBlock(b,layerName,planAt,anim,extra){
     const off=Math.max(b.s,r*6)-b.s;
     const anims=el=>{if(anim){el.classList.add('fillin');el.style.setProperty('--dl',Math.min(1.5,off*0.08)+'s');el.style.setProperty('--dur',(n*0.08)+'s');el.style.setProperty('--n',n)}};
     anims(mk('glow '+layerName,r,cs,ce));
+    anims(mk('ol',r,cs,ce,olWrap));
     const run=mk('run '+layerName+(extra?' '+extra:''),r,cs,ce,wrap);anims(run);
     if(planAt)for(let c=cs;c<ce;c++){
       const pb=planAt[r*6+c];
@@ -744,6 +757,7 @@ grid.addEventListener('mousedown',e=>{
   const i=idxAt(e);
   drag={layer:e.button===2?'plan':'rec',btn:e.button,a:i,b:i,moved:false};
   preview={layer:drag.layer,a:i,b:i+1,k:db.active};renderBlocks();
+  sfx.gaugeUp(.6);
 });
 window.addEventListener('mousemove',e=>{
   if(!drag)return;
@@ -756,6 +770,7 @@ window.addEventListener('mousemove',e=>{
 window.addEventListener('mouseup',e=>{
   if(!drag||e.button!==drag.btn)return;
   const d=drag;drag=null;
+  sfx.gaugeDown(.55);
   const a=Math.min(d.a,d.b),b=Math.max(d.a,d.b)+1;
   const arr=d.layer==='plan'?getDay(false).plans:getDay(false).recs;
   const hit=!d.moved&&arr.find(x=>a>=x.s&&a<x.e);
@@ -811,9 +826,7 @@ function commitPop(){
     }
     const nb={id:uid(),s:a,e:b,t,k};out.push(nb);d[key]=out;lastAdded=nb.id;
   }
-  const nCells=popCtx.edit?0:(popCtx.b-popCtx.a);
   db.active=k;save();preview=null;popCtx=null;pop.classList.add('hidden');renderSubbar();renderBlocks();
-  if(nCells)sfx.fill(nCells);
 }
 $('#popOk').onclick=commitPop;
 $('#popNo').onclick=closePop;
@@ -1176,20 +1189,41 @@ const sfx={
   // 결정: clean snap + rising dyad
   confirm(){sfx.click();tone(1046,1046,.09,'triangle',.1,.02);tone(1568,1568,.2,'triangle',.11,.075);tone(3136,3136,.14,'sine',.03,.085);noise(.01,.2,'highpass',6500,6500,.075)},
   cancel(){sfx.click();tone(430,270,.11,'sine',.08,.02)},
+  // 촥: swish + cascading chain links + bright accent (페르소나 선택음 느낌)
+  chain(){
+    noise(.17,.2,'bandpass',900,6200,0,1.2);
+    for(let i=0;i<6;i++){const t=.03+i*.022+Math.random()*.008,f=2600+Math.random()*2400;
+      noise(.022,.2-.02*i,'bandpass',f,f*.9,t,6);tone(f*.55,f*.5,.05,'triangle',.05,t);tone(f*1.4,f*1.3,.04,'sine',.02,t)}
+    tone(1568,1568,.2,'triangle',.07,.17);tone(2349,2349,.26,'triangle',.06,.18);noise(.012,.25,'highpass',7000,7000,.17)
+  },
+  // 키보드 타이핑
+  key(k){
+    if(k==='Enter'||k===' '){tone(150,90,.04,'sine',.13);noise(.01,.2,'bandpass',1500,1200,0,2);return}
+    const f=1700+Math.random()*600;
+    noise(.007,k==='Backspace'?.16:.21,'bandpass',k==='Backspace'?f*.7:f,f*.6,0,2);
+    tone(k==='Backspace'?150:200+Math.random()*40,110,.016,'sine',.1)
+  },
   fill(n){const d=Math.min(1.5,.4+n*.07);liquid(d,true);tone(1046,1046,.09,'triangle',.08,d+.02);tone(1568,1568,.2,'triangle',.09,d+.075)},
   fanfare(){[1046,1319,1568,2093].forEach((f,i)=>{tone(f,f,.2,'triangle',.09,i*.075);tone(f*2,f*2,.22,'sine',.025,i*.075)});noise(.3,.12,'highpass',6000,9000,.25)}
 };
+document.addEventListener('keydown',e=>{
+  if(!sndOn)return;
+  const t=e.target;if(!t||!t.tagName||!/^(INPUT|TEXTAREA)$/.test(t.tagName))return;
+  if(['range','color','file','checkbox'].includes(t.type))return;
+  if(e.key==='Enter'){if(t.tagName==='INPUT')sfx.chain();else sfx.key('Enter');return}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key.length===1||e.key==='Process'||e.key==='Backspace'||e.key==='Delete')sfx.key(e.key);
+},true);
 document.addEventListener('click',e=>{
   if(!sndOn)return;
   const t=e.target;if(!t||!t.closest)return;
   if(t.closest('#snd,#sndPanel'))return;
   if(t.closest('#tabs button,#prev,#next'))return;
-  if(t.closest('#subDone'))return sfx.confirm();
+  if(t.closest('#popOk,#ddOk,#subDone,#addForm button'))return sfx.chain();
   if(t.closest('.chk'))return sfx.check();
   if(t.closest('.x,.del,#ddRm,#popRm'))return sfx.cancel();
   if(t.closest('button,.mo-d,.mo-w,.dd-chip,.mc-head,.wk-head,.datebox,.todo,.sub'))sfx.click();
 },true);
-document.addEventListener('submit',()=>sfx.confirm(),true);
 
 addEventListener('pointerdown',e=>{const t=e.target;if(t&&t.closest&&t.closest('#tabs button,#prev,#next'))sfx.whoosh()},true);
 
@@ -1363,7 +1397,7 @@ function saveDd(){
   const t=$('#ddTitle').value.trim()||'D-DAY';
   if(ddCtx.edit){ddCtx.edit.t=t;ddCtx.edit.date=date}
   else db.ddays.push({id:uid(),t,date});
-  save();closeDd();renderView();sfx.confirm();
+  save();closeDd();renderView();
 }
 $('#ddOk').onclick=saveDd;
 $('#ddNo').onclick=closeDd;
@@ -1375,6 +1409,13 @@ for(const id of ['#ddTitle','#ddDate'])$(id).addEventListener('keydown',e=>{
 document.addEventListener('mousedown',e=>{if(!ddPop.classList.contains('hidden')&&!ddPop.contains(e.target))closeDd()});
 $('#ddAdd').onclick=e=>openDd(e,curKey);
 $('#datebox').addEventListener('contextmenu',e=>{e.preventDefault();openDd(e,curKey)});
+
+/* clock (24h) */
+function tickClock(){
+  const n=new Date(),p=v=>String(v).padStart(2,'0');
+  $('#clock').innerHTML=p(n.getHours())+':'+p(n.getMinutes())+'<small>:'+p(n.getSeconds())+'</small>';
+}
+setInterval(tickClock,1000);
 
 /* ===== ransom-note lettering ===== */
 function prng(n){n=(n^61)^(n>>>16);n=(n+(n<<3))|0;n=n^(n>>>4);n=Math.imul(n,0x27d4eb2d);n^=n>>>15;return (n>>>0)/4294967296}
@@ -1654,7 +1695,7 @@ function updateFooter(){
   $('#cMsg').textContent=!r.t?'계획을 추가해보세요':pct===0?'시작이 반이에요':pct<50?'좋은 출발이에요':pct<100?'거의 다 왔어요!':'모두 달성! 🎉';
   $('#cgauge').classList.toggle('full',r.t>0&&pct===100);
   if(prevC!==null&&prevC<100&&pct===100&&r.t>0){burst($('#cBurst'),cpal.cols);sfx.fanfare()}
-  if(prevC!==null&&pct!==prevC&&cKey===view+curKey)pct>prevC?sfx.gaugeUp(.55):sfx.gaugeDown(.55);
+  {const fromC=prevC===null?0:prevC;if(pct!==fromC){const dd=Math.min(1.2,.35+Math.abs(pct-fromC)/100*.9);pct>fromC?sfx.gaugeUp(dd):sfx.gaugeDown(dd)}}
   cKey=view+curKey;
   prevC=pct;
 }
@@ -1779,7 +1820,7 @@ $('#impFile').onchange=e=>{
 
 /* init */
 renderDate();renderSubbar();renderBlocks();renderTodos();updateNow();updateFooter();
-initView();initRn();initSound();applyBg();renderDd();setPanel(db.ui&&db.ui.panel==='memo'?'memo':'todo');renderMemo();
+tickClock();initView();initRn();initSound();applyBg();renderDd();setPanel(db.ui&&db.ui.panel==='memo'?'memo':'todo');renderMemo();
 requestAnimationFrame(scrollToNow);
 sizeCanvas();requestAnimationFrame(frame);
 setInterval(()=>{
