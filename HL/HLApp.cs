@@ -83,12 +83,10 @@ class DpForm : Form
             {
                 c.PostWebMessageAsString(full ? "fs:on" : "fs:off");
             };
-            bool windowed = false;
             foreach (string a in Environment.GetCommandLineArgs())
             {
-                if (a == "--windowed") windowed = true;
+                if (a == "--fullscreen") SetFull(true);
             }
-            if (!windowed) SetFull(true);
             c.Navigate("https://dp.local/HL.html");
         }
         catch (Exception)

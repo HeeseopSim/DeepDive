@@ -468,22 +468,17 @@ html input,html textarea{cursor:text !important}
 
 .subbar{flex:none;flex-wrap:nowrap;align-items:flex-start;gap:12px}
 .subchips{display:flex;flex-wrap:wrap;align-items:center;gap:7px;flex:1 1 0;min-width:0}
-.timer{flex:none}
-.timer{--tc:#fff;display:flex;align-items:center;gap:7px;padding:4px 6px 4px 12px;border-radius:14px;border:2.5px solid #000;background:rgba(10,2,5,.88);box-shadow:3px 3px 0 #ff2a3a}
-.tm-sub{font-family:var(--disp);font-size:14px;color:var(--tc)}
-.tm-time{font-family:var(--disp);font-size:21px;letter-spacing:.5px;font-variant-numeric:tabular-nums;min-width:92px;text-align:center}
-.timer.going .tm-time{color:#ff5a66;text-shadow:0 0 10px rgba(255,59,74,.7)}
-.timer button{width:31px;height:31px;border-radius:10px;border:2px solid #000;background:#fff;color:#0a0204;font-size:15px;padding:0;box-shadow:2px 2px 0 #ff2a3a}
-.timer button:hover{background:#ffd0d4}
-.run.live{animation:livep 1.1s ease-in-out infinite alternate}
-@keyframes livep{from{filter:saturate(1.8) brightness(1.1)}to{filter:saturate(1.8) brightness(1.55)}}
-#tmFloat{position:fixed;left:22px;bottom:16px;z-index:40;font-family:var(--disp);font-size:18px;color:var(--tc,#fff);padding:5px 14px;background:rgba(10,2,5,.88);border:2.5px solid #000;box-shadow:3px 3px 0 #ff2a3a;transform:skewX(-8deg);border-radius:0}
-#tmFloat.hidden{display:none}
 .pop-time{display:flex;align-items:center;gap:6px;margin:9px 0 2px}
 .pop-time input{width:74px;text-align:center;background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:10px;padding:9px 6px;font-size:16px;outline:none}
 .pop-time input:focus,.pop-time select:focus{border-color:#ff5667}
 .pop-time select{margin-left:auto;background:rgba(0,0,0,.4);color:inherit;border:1px solid var(--line);border-radius:10px;padding:9px 8px;font-size:15px;outline:none}
 .pop-time select option{background:#1a0408}
+
+.mk{position:absolute;width:3px;z-index:7;pointer-events:none;--mc:#2bff7a;background:var(--mc);box-shadow:0 0 7px var(--mc)}
+.mk.end{--mc:#33a8ff}
+.mk::before{content:attr(data-t);position:absolute;top:0;left:3px;white-space:nowrap;font-family:var(--disp);font-size:11.5px;line-height:15px;padding:0 9px 0 5px;color:#001;background:var(--mc);clip-path:polygon(0 0,100% 0,88% 50%,100% 100%,0 100%)}
+.legend .mkg,.legend .mkb{display:inline-block;width:8px;height:12px;border-radius:2px;vertical-align:middle;margin:0 4px 0 2px}
+.legend .mkg{background:#2bff7a;box-shadow:0 0 6px #2bff7a}.legend .mkb{background:#33a8ff;box-shadow:0 0 6px #33a8ff}
 
 /* persona-style backdrop */
 body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bgimg,none) center bottom/cover no-repeat;opacity:1;filter:brightness(var(--bgb,1.18)) saturate(1.2) contrast(1.12);pointer-events:none}
@@ -505,7 +500,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.5</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.6</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -523,10 +518,10 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <section class="panel" id="ttPanel">
     <div class="p-head">
       <h2>타임테이블</h2>
-      <div class="legend"><span><i class="lp"></i>예정 · 우클릭 드래그</span><span><i class="lr"></i>기록 · 좌클릭 드래그</span><span>Shift+드래그 = 1분 단위</span></div>
+      <div class="legend"><span><i class="lp"></i>예정 · 우클릭 드래그</span><span><i class="lr"></i>기록 · 좌클릭 드래그</span><span>Shift+드래그 = 1분 단위</span><span><i class="mkg"></i>Shift+클릭 = 시작 <i class="mkb"></i>끝 책갈피</span></div>
       <div class="sums"><span class="sum p">예정<b id="sumPlan">0분</b></span><span class="sum r">기록<b id="sumRec">0분</b></span></div>
     </div>
-    <div class="subbar" id="subbar"><div class="subchips" id="subchips"></div><div class="timer" id="timer"><span class="tm-sub" id="tmSub">—</span><span class="tm-time" id="tmTime">00:00:00</span><button id="tmPlay" title="시작 / 일시정지">▶</button><button id="tmStop" title="정지하고 타임테이블에 기록 저장">■</button></div></div>
+    <div class="subbar" id="subbar"><div class="subchips" id="subchips"></div></div>
     <div class="mins"><span>:00</span><span>:10</span><span>:20</span><span>:30</span><span>:40</span><span>:50</span></div>
     <div class="tt-scroll" id="ttScroll"><div class="tt-body"><div class="hours" id="hours"></div><div class="grid" id="grid"></div></div></div>
   </section>
@@ -625,7 +620,6 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <input type="file" id="bgmFile" accept="audio/*,.mp3" hidden>
 </div>
 <div id="clock"></div>
-<button id="tmFloat" class="hidden" title="일간 플래너로 이동"></button>
 <div id="toast"></div>
 
 <script>
@@ -664,7 +658,7 @@ function normalize(){
     db.v=2;
     try{localStorage.setItem(STORE,JSON.stringify(db))}catch(e){}
   }
-  if(db.timer&&!Array.isArray(db.timer.segs))db.timer=null;
+  delete db.timer;
   if(!db.weeks)db.weeks={};
   if(!db.months)db.months={};
   if(!db.ui)db.ui={};
@@ -746,22 +740,20 @@ function addBlock(b,layerName,plans,anim,extra){
   layer.appendChild(cl);
 }
 function renderBlocks(){
-  layer.querySelectorAll('.blk,.run,.glow,.pstrip,.cl').forEach(e=>e.remove());
+  layer.querySelectorAll('.blk,.run,.glow,.pstrip,.cl,.mk').forEach(e=>e.remove());
   const d=getDay(false);
   d.plans.forEach(b=>addBlock(b,'plan',null,b.id===lastAdded));
   d.recs.forEach(b=>addBlock(b,'rec',d.plans,b.id===lastAdded));
   lastAdded=null;
-  const tm=db.timer;
-  if(tm){
-    const segs=[...tm.segs];if(tm.since)segs.push({s:tm.since,e:Date.now()});
-    segs.forEach(sg=>{
-      const sd=new Date(sg.s);if(keyOf(sd)!==curKey)return;
-      const ed=new Date(sg.e),sm=sd.getHours()*60+sd.getMinutes();
-      const em=keyOf(ed)!==curKey?1440:Math.max(sm+1,ed.getHours()*60+ed.getMinutes());
-      addBlock({s:sm,e:em,t:'⏱',k:tm.k},'rec',null,false,'live');
-    });
-  }
   if(preview)addBlock({s:preview.a,e:preview.b,t:'',k:preview.k},preview.layer,null,false,'preview');
+  if(marks.key===curKey)[['s','start'],['e','end']].forEach(([f,cls])=>{
+    const m=marks[f];if(m==null)return;
+    const r=Math.floor(Math.min(m,1439)/60),x=(m-r*60)/60*100;
+    const el=document.createElement('div');el.className='mk '+cls;
+    el.style.left=`calc(${x}% - 1.5px)`;el.style.top=`${r*100/24}%`;el.style.height=`${100/24}%`;
+    el.dataset.t=(f==='s'?'시작 ':'끝 ')+fmtT(m);
+    layer.appendChild(el);
+  });
   $('#sumPlan').textContent=fmtDur(d.plans.reduce((a,b)=>a+b.e-b.s,0));
   $('#sumRec').textContent=fmtDur(d.recs.reduce((a,b)=>a+b.e-b.s,0));
   updateSubSums();
@@ -816,6 +808,7 @@ window.addEventListener('mousemove',e=>{
 window.addEventListener('mouseup',e=>{
   if(!drag||e.button!==drag.btn)return;
   const d=drag;drag=null;
+  if(!d.moved&&e.shiftKey&&d.btn===0){preview=null;bookmark(d.a,e);return}
   const arr=d.layer==='plan'?getDay(false).plans:getDay(false).recs;
   const hit=!d.moved&&arr.find(x=>d.a>=x.s&&d.a<x.e);
   if(hit){preview=null;renderBlocks();openPop(e,{layer:d.layer,edit:hit})}
@@ -824,6 +817,21 @@ window.addEventListener('mouseup',e=>{
     preview={layer:d.layer,a:rg.a,b:rg.b,k:db.active};renderBlocks();openPop(e,{layer:d.layer,a:rg.a,b:rg.b});
   }
 });
+
+/* bookmarks: Shift+click = start (green) then end (blue) */
+let marks={s:null,e:null,key:null};
+function clearMarks(){marks={s:null,e:null,key:null}}
+function bookmark(m,ev){
+  if(marks.key!==curKey)marks={s:null,e:null,key:curKey};
+  if(marks.s==null||marks.e!=null){marks={s:m,e:null,key:curKey};renderBlocks();return}
+  if(m===marks.s){clearMarks();renderBlocks();return}
+  const a=Math.min(marks.s,m),b=Math.max(marks.s,m);
+  marks={s:a,e:b,key:curKey};
+  preview={layer:'rec',a,b,k:db.active};
+  renderBlocks();
+  openPop(ev,{layer:'rec',a,b});
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&marks.s!=null&&pop.classList.contains('hidden')){clearMarks();renderBlocks()}});
 
 /* popup */
 const pop=$('#pop'),popIn=$('#popIn');
@@ -868,7 +876,8 @@ function buildPopSubs(){
 function closePop(){
   if(pop.classList.contains('hidden'))return;
   pop.classList.add('hidden');popCtx=null;
-  if(preview){preview=null;renderBlocks()}
+  const had=marks.s!=null;clearMarks();
+  if(preview||had){preview=null;renderBlocks()}
 }
 function commitPop(){
   if(!popCtx)return;
@@ -881,7 +890,7 @@ function commitPop(){
   if(popCtx.edit){d[oldKey]=d[oldKey].filter(x=>x!==popCtx.edit);id=popCtx.edit.id}
   const nb={id:id||uid(),s,e,t,k};
   d[key]=placeBlock(d[key],nb);lastAdded=nb.id;
-  db.active=k;save();preview=null;popCtx=null;pop.classList.add('hidden');renderSubbar();renderBlocks();
+  db.active=k;save();preview=null;popCtx=null;pop.classList.add('hidden');clearMarks();renderSubbar();renderBlocks();
 }
 $('#popOk').onclick=commitPop;
 $('#popNo').onclick=closePop;
@@ -999,63 +1008,6 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='ArrowRight')shift(1);
 });
 
-/* ===== study timer ===== */
-const fmtHMS=ms=>{const t=Math.floor(ms/1000);return pad(Math.floor(t/3600))+':'+pad(Math.floor(t%3600/60))+':'+pad(t%60)};
-function tmElapsed(){
-  const t=db.timer;if(!t)return 0;
-  let ms=0;for(const sg of t.segs)ms+=sg.e-sg.s;
-  if(t.since)ms+=Date.now()-t.since;
-  return ms;
-}
-function renderTimer(){
-  const t=db.timer,sj=subj(t?t.k:db.active),el=$('#timer');
-  $('#tmSub').textContent=sj.name||'과목';
-  el.style.setProperty('--tc',sj.color);
-  $('#tmTime').textContent=fmtHMS(tmElapsed());
-  el.classList.toggle('going',!!(t&&t.since));
-  $('#tmPlay').textContent=(t&&t.since)?'⏸':'▶';
-  $('#tmStop').style.display=t?'':'none';
-  const fl=$('#tmFloat');
-  if(t&&view!=='day'){fl.classList.remove('hidden');fl.textContent='⏱ '+(sj.name||'')+'  '+fmtHMS(tmElapsed());fl.style.setProperty('--tc',sj.color)}
-  else fl.classList.add('hidden');
-}
-$('#tmPlay').onclick=()=>{
-  const t=db.timer;
-  if(!t)db.timer={k:db.active,segs:[],since:Date.now()};
-  else if(t.since){t.segs.push({s:t.since,e:Date.now()});t.since=null}
-  else t.since=Date.now();
-  save();renderTimer();renderBlocks();
-};
-$('#tmStop').onclick=()=>stopTimer();
-$('#tmFloat').onclick=()=>setView('day');
-function stopTimer(){
-  const t=db.timer;if(!t)return;
-  if(t.since){t.segs.push({s:t.since,e:Date.now()});t.since=null}
-  let n=0;
-  for(const sg of t.segs){
-    if(sg.e-sg.s<30000)continue;
-    let st=sg.s;
-    while(st<sg.e){
-      const sd=new Date(st),key=keyOf(sd),dayEnd=new Date(sd.getFullYear(),sd.getMonth(),sd.getDate()+1).getTime();
-      const en=Math.min(sg.e,dayEnd),ed=new Date(en);
-      const sm=sd.getHours()*60+sd.getMinutes();
-      const em=en>=dayEnd?1440:Math.max(sm+1,ed.getHours()*60+ed.getMinutes());
-      const d=dayBy(key,true);
-      d.recs=placeBlock(d.recs,{id:uid(),s:sm,e:em,t:'',k:t.k});n++;
-      st=en;
-    }
-  }
-  db.timer=null;save();
-  toast(n?`공부 기록 ${n}개를 타임테이블에 저장했어요`:'30초 미만이라 기록하지 않았어요');
-  renderTimer();renderView();
-}
-let lastLive=0;
-setInterval(()=>{
-  if(!db.timer)return;
-  renderTimer();
-  if(db.timer.since&&view==='day'&&curKey===today&&Date.now()-lastLive>15000){lastLive=Date.now();renderBlocks()}
-},500);
-
 /* subjects UI */
 function renderSubbar(){
   const bar=$('#subchips');bar.innerHTML='<span class="lbl">과목</span>';
@@ -1069,7 +1021,6 @@ function renderSubbar(){
   const g=document.createElement('button');g.className='sub gear';g.textContent='🎨 과목·색 편집';g.onclick=openModal;
   bar.appendChild(g);
   updateSubSums();
-  renderTimer();
 }
 function updateSubSums(){
   const m={};getDay(false).recs.forEach(b=>{m[b.k]=(m[b.k]||0)+b.e-b.s});
@@ -1201,7 +1152,7 @@ function updateGauge(){
   $('#gTitle').textContent=curKey===today?'오늘의 달성률':'이 날의 달성률';
   $('#gMsg').textContent=!total?'할 일을 추가해보세요':pct===0?'시작이 반이에요':pct<50?'좋은 시작이에요':pct<100?'거의 다 왔어요!':'모두 완료! 🎉';
   gauge.classList.toggle('full',total>0&&pct===100);
-  if(prevPct!==null&&pct!==prevPct){gauge.classList.remove('bump');void gauge.offsetWidth;gauge.classList.add('bump');if(gaugeKey===curKey&&view==='day')pct>prevPct?sfx.gaugeUp(.55):sfx.gaugeDown(.55)}
+  if(prevPct!==null&&pct!==prevPct){gauge.classList.remove('bump');void gauge.offsetWidth;gauge.classList.add('bump');if(gaugeKey===curKey&&view==='day')pct>prevPct?sfx.gaugeUp(.9):sfx.gaugeDown(.9)}
   gaugeKey=curKey;
   if(prevPct!==null&&prevPct<100&&pct===100&&total>0){burst();sfx.fanfare()}
   prevPct=pct;
@@ -1210,11 +1161,16 @@ function updateGauge(){
 /* ===== view settings: panel transparency / UI scale / backdrop brightness ===== */
 const VDEF={pa:30,scale:100,bgb:118};
 let VS={...VDEF};
+function autoScale(){
+  const fs=(typeof hostFs!=='undefined'&&hostFs)||document.fullscreenElement;
+  if(!fs)return 1;
+  return clamp(Math.min(innerWidth/1366,innerHeight/820),1,2.4);
+}
 function applyView(){
   const root=document.documentElement;
   root.style.setProperty('--pa',(.86-.8*VS.pa/100).toFixed(3));
   root.style.setProperty('--bgb',(VS.bgb/100).toFixed(2));
-  root.style.zoom=(VS.scale/100).toFixed(2);
+  root.style.zoom=(VS.scale/100*autoScale()).toFixed(3);
   $('#vPa').value=VS.pa;$('#vPaN').textContent=VS.pa+'%';
   $('#vScale').value=VS.scale;$('#vScaleN').textContent=VS.scale+'%';
   $('#vBgb').value=VS.bgb;$('#vBgbN').textContent=VS.bgb+'%';
@@ -1292,6 +1248,34 @@ function gaugeFx(d,up){
   }
   if(up){tone(2093,2093,.16,'triangle',.07,d);noise(.01,.2,'highpass',7000,7000,d)}
 }
+function water(d,up){
+  const a=sndOn&&ac();if(!a)return;
+  const t=a.currentTime,sr=a.sampleRate,len=Math.ceil(sr*(d+.25));
+  // brown-ish noise = body of running water
+  const buf=a.createBuffer(1,len,sr),ch=buf.getChannelData(0);let last=0;
+  for(let i=0;i<len;i++){const w=Math.random()*2-1;last=(last+.04*w)/1.04;ch[i]=last*7}
+  const src=a.createBufferSource();src.buffer=buf;
+  // cavity resonance that climbs as the vessel fills (falls while it drains)
+  const bp=a.createBiquadFilter();bp.type='bandpass';bp.Q.value=6;
+  bp.frequency.setValueAtTime(up?230:960,t);bp.frequency.exponentialRampToValueAtTime(up?960:230,t+d);
+  const g=a.createGain();
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.16,t+.07);g.gain.setValueAtTime(.16,t+d*.8);g.gain.exponentialRampToValueAtTime(.0001,t+d+.14);
+  src.connect(bp);bp.connect(g);g.connect(SFXG);src.start(t);
+  // soft pour hiss on top
+  const hb=a.createBuffer(1,len,sr),hd=hb.getChannelData(0);for(let i=0;i<len;i++)hd[i]=Math.random()*2-1;
+  const hs=a.createBufferSource();hs.buffer=hb;
+  const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=2800;
+  const lp=a.createBiquadFilter();lp.type='lowpass';lp.frequency.value=8000;
+  const hg=a.createGain();hg.gain.setValueAtTime(.0001,t);hg.gain.exponentialRampToValueAtTime(.022,t+.08);hg.gain.setValueAtTime(.022,t+d*.8);hg.gain.exponentialRampToValueAtTime(.0001,t+d+.12);
+  hs.connect(hp);hp.connect(lp);lp.connect(hg);hg.connect(SFXG);hs.start(t);
+  // little bubbles popping up through the water
+  const n=Math.round(d*20);
+  for(let i=0;i<n;i++){
+    const tt=Math.random()*d*.95,f0=500+Math.random()*1300;
+    tone(f0,f0*(1.8+Math.random()*.9),.018+Math.random()*.014,'sine',.022+Math.random()*.026,tt);
+  }
+  if(up)tone(1568,1568,.18,'sine',.035,d+.02);
+}
 function liquid(d,up){
   const a=sndOn&&ac();if(!a)return;
   const t=a.currentTime;
@@ -1314,18 +1298,19 @@ const sfx={
   whoosh(){const a=sndOn&&ac();if(!a||!whBuf)return;if(a.currentTime-lastWh<.25)return;lastWh=a.currentTime;const s=a.createBufferSource();s.buffer=whBuf;const g=a.createGain();g.gain.value=.85;s.connect(g);g.connect(SFXG);s.start()},
   check(){sfx.click();tone(1568,1568,.1,'sine',.09,.02);tone(2093,2093,.14,'sine',.07,.065)},
   // 게이지 차오름 / 빠짐
-  gaugeUp(d){liquid(d||.6,true)},
-  gaugeDown(d){liquid(d||.6,false)},
+  gaugeUp(d){water(d||.9,true)},
+  gaugeDown(d){water(d||.9,false)},
   hover(){noise(.01,.2,'bandpass',3000,2400,0,2.4);tone(230,120,.014,'sine',.065)},
   // 결정: clean snap + rising dyad
   confirm(){sfx.click();tone(1046,1046,.09,'triangle',.1,.02);tone(1568,1568,.2,'triangle',.11,.075);tone(3136,3136,.14,'sine',.03,.085);noise(.01,.2,'highpass',6500,6500,.075)},
   cancel(){sfx.click();tone(430,270,.11,'sine',.08,.02)},
-  // 촥: swish + cascading chain links + bright accent (페르소나 선택음 느낌)
+  // 입력 완료: clean soft swipe + bell (no rattle)
   chain(){
-    noise(.17,.2,'bandpass',900,6200,0,1.2);
-    for(let i=0;i<6;i++){const t=.03+i*.022+Math.random()*.008,f=2600+Math.random()*2400;
-      noise(.022,.2-.02*i,'bandpass',f,f*.9,t,6);tone(f*.55,f*.5,.05,'triangle',.05,t);tone(f*1.4,f*1.3,.04,'sine',.02,t)}
-    tone(1568,1568,.2,'triangle',.07,.17);tone(2349,2349,.26,'triangle',.06,.18);noise(.012,.25,'highpass',7000,7000,.17)
+    noise(.07,.1,'bandpass',1800,7500,0,1.1);
+    tone(1046,1046,.14,'triangle',.07,.03);
+    tone(1568,1568,.26,'sine',.09,.075);
+    tone(3763,3763,.14,'sine',.022,.075);
+    tone(3136,3136,.16,'sine',.02,.08);
   },
   // 키보드 타이핑
   key(k){
@@ -1334,7 +1319,7 @@ const sfx={
     noise(.007,k==='Backspace'?.16:.21,'bandpass',k==='Backspace'?f*.7:f,f*.6,0,2);
     tone(k==='Backspace'?150:200+Math.random()*40,110,.016,'sine',.1)
   },
-  fill(n){liquid(Math.min(1.5,.4+n*.07),true)},
+  fill(n){water(Math.min(1.6,.5+n*.07),true)},
   fanfare(){[1046,1319,1568,2093].forEach((f,i)=>{tone(f,f,.2,'triangle',.09,i*.075);tone(f*2,f*2,.22,'sine',.025,i*.075)});noise(.3,.12,'highpass',6000,9000,.25)}
 };
 document.addEventListener('keydown',e=>{
@@ -1837,7 +1822,7 @@ function updateFooter(){
   $('#cMsg').textContent=!r.t?'계획을 추가해보세요':pct===0?'시작이 반이에요':pct<50?'좋은 출발이에요':pct<100?'거의 다 왔어요!':'모두 달성! 🎉';
   $('#cgauge').classList.toggle('full',r.t>0&&pct===100);
   if(prevC!==null&&prevC<100&&pct===100&&r.t>0){burst($('#cBurst'),cpal.cols);sfx.fanfare()}
-  {const fromC=prevC===null?0:prevC;if(pct!==fromC){const dd=Math.min(1.2,.35+Math.abs(pct-fromC)/100*.9);pct>fromC?sfx.gaugeUp(dd):sfx.gaugeDown(dd)}}
+  {const fromC=prevC===null?0:prevC;if(pct!==fromC){const dd=Math.min(1.4,.6+Math.abs(pct-fromC)/100*.9);pct>fromC?sfx.gaugeUp(dd):sfx.gaugeDown(dd)}}
   cKey=view+curKey;
   prevC=pct;
 }
@@ -1880,7 +1865,7 @@ function renderView(){
   updateFooter();
 }
 function setDay(k,dir){
-  curKey=k;sel=null;buf='';closePop();
+  curKey=k;sel=null;buf='';clearMarks();closePop();
   renderView();
   const els=view==='day'?[$('#hours').parentElement,list]:[$('#'+VID[view])];
   for(const el of els){el.classList.remove('swap');void el.offsetWidth;el.classList.add('swap')}
@@ -1929,8 +1914,9 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setView(b.dat
 let hostFs=false;
 const wvh=window.chrome&&window.chrome.webview;
 function setFsLabel(){$('#fs').textContent=(hostFs||document.fullscreenElement)?'⛶ 창모드':'⛶ 전체화면'}
-if(wvh)wvh.addEventListener('message',e=>{hostFs=(e.data==='fs:on');setFsLabel()});
-document.addEventListener('fullscreenchange',setFsLabel);
+if(wvh)wvh.addEventListener('message',e=>{hostFs=(e.data==='fs:on');setFsLabel();applyView()});
+document.addEventListener('fullscreenchange',()=>{setFsLabel();applyView()});
+addEventListener('resize',()=>{if(hostFs||document.fullscreenElement)applyView()});
 function toggleFs(){
   if(wvh)wvh.postMessage('toggle-fs');
   else if(document.fullscreenElement)document.exitFullscreen();
@@ -1962,7 +1948,7 @@ $('#impFile').onchange=e=>{
 
 /* init */
 renderDate();renderSubbar();renderBlocks();renderTodos();updateNow();updateFooter();
-renderTimer();tickClock();initView();initRn();initSound();applyBg();renderDd();setPanel(db.ui&&db.ui.panel==='memo'?'memo':'todo');renderMemo();
+tickClock();initView();initRn();initSound();applyBg();renderDd();setPanel(db.ui&&db.ui.panel==='memo'?'memo':'todo');renderMemo();
 requestAnimationFrame(scrollToNow);
 sizeCanvas();requestAnimationFrame(frame);
 setInterval(()=>{
