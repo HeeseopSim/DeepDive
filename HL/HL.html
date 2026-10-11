@@ -118,9 +118,9 @@ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,410px);gap:18
 .hrow i:nth-child(4){border-left-color:rgba(255,255,255,.1)}
 .layer{position:absolute;inset:0;pointer-events:none}
 .run{position:absolute;--c:#ff3347;--tx:#fff}
-.run.plan{z-index:1;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 58%,#fff),color-mix(in srgb,var(--c) 72%,#fff))}
+.run.plan{z-index:1;background:radial-gradient(ellipse 66% 135% at 50% 50%,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 72%),linear-gradient(135deg,color-mix(in srgb,var(--c) 58%,#fff),color-mix(in srgb,var(--c) 72%,#fff))}
 .glow.plan{z-index:0;box-shadow:0 0 4px 0 color-mix(in srgb,var(--c) 45%,transparent),0 0 8px 1px color-mix(in srgb,var(--c) 22%,transparent);filter:saturate(1.2) brightness(1.05)}
-.run.rec{z-index:3;background:var(--c);filter:saturate(1.8) brightness(1.3)}
+.run.rec{z-index:3;background:radial-gradient(ellipse 95% 165% at 50% 50%,rgba(255,255,255,.5) 0%,rgba(255,255,255,.2) 48%,rgba(255,255,255,.03) 100%),var(--c);filter:saturate(1.8) brightness(1.3)}
 .glow{position:absolute;z-index:2;pointer-events:none;box-shadow:0 0 3px 0 var(--c),0 0 9px 1px color-mix(in srgb,var(--c) 65%,transparent);filter:saturate(1.5) brightness(1.15)}
 .pstrip{position:absolute;z-index:4;height:4px;pointer-events:none;background:color-mix(in srgb,var(--pc) 35%,#fff);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 
@@ -465,6 +465,8 @@ html input,html textarea{cursor:text !important}
 .tabs button:nth-child(3n),.chip:nth-child(3n),.sub:nth-child(3n),.dd-chip:nth-child(3n){animation-duration:2.3s;animation-delay:-1.7s}
 #clock{position:fixed;right:22px;bottom:16px;z-index:40;font-family:var(--disp);font-size:26px;letter-spacing:1.5px;color:#fff;padding:3px 16px 4px;background:rgba(10,2,5,.82);border:2.5px solid #000;box-shadow:3px 3px 0 #ff2a3a,0 0 0 2px #fff;transform:skewX(-8deg);font-variant-numeric:tabular-nums;pointer-events:none}
 #clock small{font-size:.62em;opacity:.85;margin-left:2px}
+.glow,.glow.plan{display:none !important}
+.cl{text-shadow:var(--sh,none)}
 
 /* persona-style backdrop */
 body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bgimg,none) center bottom/cover no-repeat;opacity:1;filter:brightness(var(--bgb,1.18)) saturate(1.2) contrast(1.12);pointer-events:none}
@@ -486,7 +488,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.1</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.2</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -708,6 +710,7 @@ function addBlock(b,layerName,planAt,anim,extra){
   const cl=document.createElement('div');
   cl.className='cl '+layerName+(anim?' fillin':'');
   cl.style.setProperty('--tx',tx);
+  cl.style.setProperty('--sh',tx==='#fff'?'0 0 3px rgba(0,0,0,.8),0 0 1px #000':'0 0 3px rgba(255,255,255,.75)');
   cl.style.left=`calc(${bcs/6*100}% + 1px)`;
   cl.style.width=`calc(${(bce-bcs)/6*100}% - 2px)`;
   cl.style.top=`calc(${br*rowH}% + .5px)`;
@@ -1162,6 +1165,23 @@ function noise(dur,vol,ftype,f0,f1,delay,q){
   const g=a.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
   src.connect(f);f.connect(g);g.connect(SFXG);src.start(t);
 }
+function gaugeFx(d,up){
+  const a=sndOn&&ac();if(!a)return;
+  const t=a.currentTime;
+  // smooth charging sweep
+  const o=a.createOscillator(),g=a.createGain();
+  o.type='triangle';o.frequency.setValueAtTime(up?330:1500,t);o.frequency.exponentialRampToValueAtTime(up?1760:330,t+d);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.07,t+.04);g.gain.setTargetAtTime(.0001,t+d*.88,.03);
+  o.connect(g);g.connect(SFXG);o.start(t);o.stop(t+d+.15);
+  // stepped ticks climbing (or falling down) a pentatonic ladder
+  const sc=[0,2,4,7,9,12,14,16,19,21,24],n=Math.max(5,Math.round(d*18));
+  for(let i=0;i<n;i++){
+    const k=up?i:n-1-i,idx=Math.min(sc.length-1,Math.floor(k/(n-1)*(sc.length-1)));
+    const f=523*Math.pow(2,sc[idx]/12);
+    tone(f,f,.035,'square',.026,i*d/n);
+  }
+  if(up){tone(2093,2093,.16,'triangle',.07,d);noise(.01,.2,'highpass',7000,7000,d)}
+}
 function liquid(d,up){
   const a=sndOn&&ac();if(!a)return;
   const t=a.currentTime;
@@ -1183,9 +1203,10 @@ const sfx={
   click(){noise(.014,.34,'bandpass',3400,2500,0,2.4);tone(250,120,.02,'sine',.12);noise(.011,.2,'bandpass',2600,1900,.042,2.4);tone(210,100,.016,'sine',.07,.042)},
   whoosh(){const a=sndOn&&ac();if(!a||!whBuf)return;if(a.currentTime-lastWh<.25)return;lastWh=a.currentTime;const s=a.createBufferSource();s.buffer=whBuf;const g=a.createGain();g.gain.value=.85;s.connect(g);g.connect(SFXG);s.start()},
   check(){sfx.click();tone(1568,1568,.1,'sine',.09,.02);tone(2093,2093,.14,'sine',.07,.065)},
-  // 액체가 차오름 / 빠짐
-  gaugeUp(d){liquid(d||.6,true)},
-  gaugeDown(d){liquid(d||.6,false)},
+  // 게이지 차오름 / 빠짐
+  gaugeUp(d){gaugeFx(d||.6,true)},
+  gaugeDown(d){gaugeFx(d||.6,false)},
+  hover(){noise(.01,.2,'bandpass',3000,2400,0,2.4);tone(230,120,.014,'sine',.065)},
   // 결정: clean snap + rising dyad
   confirm(){sfx.click();tone(1046,1046,.09,'triangle',.1,.02);tone(1568,1568,.2,'triangle',.11,.075);tone(3136,3136,.14,'sine',.03,.085);noise(.01,.2,'highpass',6500,6500,.075)},
   cancel(){sfx.click();tone(430,270,.11,'sine',.08,.02)},
@@ -1203,7 +1224,7 @@ const sfx={
     noise(.007,k==='Backspace'?.16:.21,'bandpass',k==='Backspace'?f*.7:f,f*.6,0,2);
     tone(k==='Backspace'?150:200+Math.random()*40,110,.016,'sine',.1)
   },
-  fill(n){const d=Math.min(1.5,.4+n*.07);liquid(d,true);tone(1046,1046,.09,'triangle',.08,d+.02);tone(1568,1568,.2,'triangle',.09,d+.075)},
+  fill(n){gaugeFx(Math.min(1.5,.4+n*.07),true)},
   fanfare(){[1046,1319,1568,2093].forEach((f,i)=>{tone(f,f,.2,'triangle',.09,i*.075);tone(f*2,f*2,.22,'sine',.025,i*.075)});noise(.3,.12,'highpass',6000,9000,.25)}
 };
 document.addEventListener('keydown',e=>{
@@ -1214,18 +1235,28 @@ document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key.length===1||e.key==='Process'||e.key==='Backspace'||e.key==='Delete')sfx.key(e.key);
 },true);
-document.addEventListener('click',e=>{
+document.addEventListener('pointerdown',e=>{
   if(!sndOn)return;
   const t=e.target;if(!t||!t.closest)return;
-  if(t.closest('#snd,#sndPanel'))return;
-  if(t.closest('#tabs button,#prev,#next'))return;
+  if(t.closest('input[type=range]'))return;
+  if(t.closest('#tabs button,#prev,#next'))return sfx.whoosh();
   if(t.closest('#popOk,#ddOk,#subDone,#addForm button'))return sfx.chain();
   if(t.closest('.chk'))return sfx.check();
   if(t.closest('.x,.del,#ddRm,#popRm'))return sfx.cancel();
-  if(t.closest('button,.mo-d,.mo-w,.dd-chip,.mc-head,.wk-head,.datebox,.todo,.sub'))sfx.click();
+  sfx.click();
 },true);
+let lastHov=null,lastHovT=0;
+document.addEventListener('pointerover',e=>{
+  if(!sndOn||e.pointerType==='touch'||drag)return;
+  const t=e.target.closest&&e.target.closest('button,.mo-d,.mo-w,.dd-chip,.mc-head,.wk-head,.todo,.sub,.le li,.datebox,.sw,.chip');
+  if(!t||t===lastHov)return;
+  lastHov=t;
+  const now=performance.now();if(now-lastHovT<60)return;lastHovT=now;
+  sfx.hover();
+},true);
+document.addEventListener('pointerout',e=>{if(!e.relatedTarget)lastHov=null},true);
 
-addEventListener('pointerdown',e=>{const t=e.target;if(t&&t.closest&&t.closest('#tabs button,#prev,#next'))sfx.whoosh()},true);
+
 
 /* BGM: Web Audio gapless loop of 0:15 - 2:27 */
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('hl-media',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
