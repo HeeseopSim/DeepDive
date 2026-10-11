@@ -495,7 +495,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.8</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.9</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -767,8 +767,7 @@ const minAt=e=>{
 };
 const rangeOf=(m1,m2,fine=true)=>{
   const lo=Math.min(m1,m2),hi=Math.max(m1,m2);
-  if(fine)return{a:lo,b:Math.max(hi,lo+1)};
-  return{a:Math.floor(lo/10)*10,b:Math.floor(hi/10)*10+10};
+  return{a:lo,b:Math.max(hi,lo+1)};
 };
 grid.addEventListener('contextmenu',e=>e.preventDefault());
 grid.addEventListener('mousedown',e=>{
