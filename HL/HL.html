@@ -474,11 +474,6 @@ html input,html textarea{cursor:text !important}
 .pop-time select{margin-left:auto;background:rgba(0,0,0,.4);color:inherit;border:1px solid var(--line);border-radius:10px;padding:9px 8px;font-size:15px;outline:none}
 .pop-time select option{background:#1a0408}
 
-.mk{position:absolute;width:3px;z-index:7;pointer-events:none;--mc:#2bff7a;background:var(--mc);box-shadow:0 0 7px var(--mc)}
-.mk.end{--mc:#33a8ff}
-.mk::before{content:attr(data-t);position:absolute;top:0;left:3px;white-space:nowrap;font-family:var(--disp);font-size:11.5px;line-height:15px;padding:0 9px 0 5px;color:#001;background:var(--mc);clip-path:polygon(0 0,100% 0,88% 50%,100% 100%,0 100%)}
-.legend .mkg,.legend .mkb{display:inline-block;width:8px;height:12px;border-radius:2px;vertical-align:middle;margin:0 4px 0 2px}
-.legend .mkg{background:#2bff7a;box-shadow:0 0 6px #2bff7a}.legend .mkb{background:#33a8ff;box-shadow:0 0 6px #33a8ff}
 
 /* persona-style backdrop */
 body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bgimg,none) center bottom/cover no-repeat;opacity:1;filter:brightness(var(--bgb,1.18)) saturate(1.2) contrast(1.12);pointer-events:none}
@@ -500,7 +495,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.7</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 2.8</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -518,7 +513,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <section class="panel" id="ttPanel">
     <div class="p-head">
       <h2>타임테이블</h2>
-      <div class="legend"><span><i class="lp"></i>예정 · 우클릭 드래그</span><span><i class="lr"></i>기록 · 좌클릭 드래그</span><span>드래그 = 1분 단위</span><span><i class="mkg"></i>Shift+클릭 = 시작 <i class="mkb"></i>끝 깃발</span></div>
+      <div class="legend"><span><i class="lp"></i>예정 · 우클릭 드래그</span><span><i class="lr"></i>기록 · 좌클릭 드래그</span><span>드래그 = 1분 단위</span></div>
       <div class="sums"><span class="sum p">예정<b id="sumPlan">0분</b></span><span class="sum r">기록<b id="sumRec">0분</b></span></div>
     </div>
     <div class="subbar" id="subbar"><div class="subchips" id="subchips"></div></div>
@@ -740,20 +735,12 @@ function addBlock(b,layerName,plans,anim,extra){
   layer.appendChild(cl);
 }
 function renderBlocks(){
-  layer.querySelectorAll('.blk,.run,.glow,.pstrip,.cl,.mk').forEach(e=>e.remove());
+  layer.querySelectorAll('.blk,.run,.glow,.pstrip,.cl').forEach(e=>e.remove());
   const d=getDay(false);
   d.plans.forEach(b=>addBlock(b,'plan',null,b.id===lastAdded));
   d.recs.forEach(b=>addBlock(b,'rec',d.plans,b.id===lastAdded));
   lastAdded=null;
   if(preview)addBlock({s:preview.a,e:preview.b,t:'',k:preview.k},preview.layer,null,false,'preview');
-  if(marks.key===curKey)[['s','start'],['e','end']].forEach(([f,cls])=>{
-    const m=marks[f];if(m==null)return;
-    const r=Math.floor(Math.min(m,1439)/60),x=(m-r*60)/60*100;
-    const el=document.createElement('div');el.className='mk '+cls;
-    el.style.left=`calc(${x}% - 1.5px)`;el.style.top=`${r*100/24}%`;el.style.height=`${100/24}%`;
-    el.dataset.t=(f==='s'?'시작 ':'끝 ')+fmtT(m);
-    layer.appendChild(el);
-  });
   $('#sumPlan').textContent=fmtDur(d.plans.reduce((a,b)=>a+b.e-b.s,0));
   $('#sumRec').textContent=fmtDur(d.recs.reduce((a,b)=>a+b.e-b.s,0));
   updateSubSums();
@@ -808,7 +795,6 @@ window.addEventListener('mousemove',e=>{
 window.addEventListener('mouseup',e=>{
   if(!drag||e.button!==drag.btn)return;
   const d=drag;drag=null;
-  if(!d.moved&&e.shiftKey&&d.btn===0){preview=null;bookmark(d.a,e);return}
   const arr=d.layer==='plan'?getDay(false).plans:getDay(false).recs;
   const hit=!d.moved&&arr.find(x=>d.a>=x.s&&d.a<x.e);
   if(hit){preview=null;renderBlocks();openPop(e,{layer:d.layer,edit:hit})}
@@ -817,18 +803,6 @@ window.addEventListener('mouseup',e=>{
     preview={layer:d.layer,a:rg.a,b:rg.b,k:db.active};renderBlocks();openPop(e,{layer:d.layer,a:rg.a,b:rg.b});
   }
 });
-
-/* bookmarks: Shift+click = start (green) then end (blue) */
-let marks={s:null,e:null,key:null};
-function clearMarks(){marks={s:null,e:null,key:null}}
-function bookmark(m,ev){
-  if(marks.key!==curKey)marks={s:null,e:null,key:curKey};
-  if(marks.s==null||marks.e!=null){marks={s:m,e:null,key:curKey};renderBlocks();return}
-  if(m===marks.s){clearMarks();renderBlocks();return}
-  marks={s:Math.min(marks.s,m),e:Math.max(marks.s,m),key:curKey};
-  renderBlocks();
-}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&marks.s!=null&&pop.classList.contains('hidden')){clearMarks();renderBlocks()}});
 
 /* popup */
 const pop=$('#pop'),popIn=$('#popIn');
@@ -1861,7 +1835,7 @@ function renderView(){
   updateFooter();
 }
 function setDay(k,dir){
-  curKey=k;sel=null;buf='';clearMarks();closePop();
+  curKey=k;sel=null;buf='';closePop();
   renderView();
   const els=view==='day'?[$('#hours').parentElement,list]:[$('#'+VID[view])];
   for(const el of els){el.classList.remove('swap');void el.offsetWidth;el.classList.add('swap')}
