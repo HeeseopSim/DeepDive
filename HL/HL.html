@@ -147,7 +147,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,410px);gap:18
 .empty{text-align:center;color:var(--muted);padding:50px 10px;font-size:13px;line-height:1.8}
 .todo{--c:transparent;position:relative;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px;margin-bottom:7px;border-radius:13px;background:rgba(255,255,255,.05);border:1px solid transparent;border-left:4px solid transparent;cursor:pointer;transition:background .25s,border-color .25s,opacity .25s,box-shadow .25s}
 .todo.c-pink{--c:var(--c-pink)} .todo.c-orange{--c:var(--c-orange)} .todo.c-blue{--c:var(--c-blue)} .todo.c-green{--c:var(--c-green)}
-.todo[class*=" c-"]{background:linear-gradient(90deg,color-mix(in srgb,var(--c) 38%,transparent),color-mix(in srgb,var(--c) 13%,transparent));border-left-color:var(--c);box-shadow:0 0 18px color-mix(in srgb,var(--c) 22%,transparent)}
+.todo[class*=" c-"]{background:linear-gradient(90deg,color-mix(in srgb,var(--c) 88%,#000),color-mix(in srgb,var(--c) 52%,#000));border-left-color:var(--c);box-shadow:0 0 18px color-mix(in srgb,var(--c) 40%,transparent)}
 .todo:hover{border-color:rgba(255,255,255,.18)}
 .todo.sel{border-color:#fff;box-shadow:0 0 0 2px rgba(255,51,71,.7)}
 .todo.enter{animation:enter .45s cubic-bezier(.2,.9,.3,1.2)}
@@ -274,7 +274,7 @@ main.hidden{display:none}
 .le{list-style:none;margin:0 0 6px;padding:0}
 .le li{--c:transparent;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 9px;margin-bottom:5px;border-radius:10px;background:rgba(255,255,255,.06);border-left:3px solid transparent;font-size:13px;line-height:1.35;transition:.2s}
 .le li.c-pink{--c:var(--c-pink)}.le li.c-orange{--c:var(--c-orange)}.le li.c-blue{--c:var(--c-blue)}.le li.c-green{--c:var(--c-green)}
-.le li[class*="c-"]{border-left-color:var(--c);background:linear-gradient(90deg,color-mix(in srgb,var(--c) 30%,transparent),color-mix(in srgb,var(--c) 9%,transparent))}
+.le li[class*="c-"]{border-left-color:var(--c);background:linear-gradient(90deg,color-mix(in srgb,var(--c) 85%,#000),color-mix(in srgb,var(--c) 50%,#000))}
 .le li.enter{animation:enter .4s cubic-bezier(.2,.9,.3,1.2)}
 .le .t{flex:1;min-width:0;word-break:break-all;cursor:text}
 .le .t input{width:100%;background:rgba(0,0,0,.4);border:1px solid var(--purple);border-radius:7px;padding:3px 7px;outline:none}
@@ -412,6 +412,8 @@ html input,html textarea{cursor:text !important}
 #addForm button{font-size:16px;padding:0 20px}
 .todo{padding:13px 12px 13px 14px}
 .txt{font-size:17.5px;line-height:1.4}
+.txt,.le .t{color:#fff;font-weight:700;-webkit-text-stroke:3.5px #000;paint-order:stroke fill;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.txt input,.le .t input{-webkit-text-stroke:0;font-weight:600}
 .hint{font-size:13px}
 .le li{font-size:16px;padding:8px 8px 8px 10px}
 .le-add input{font-size:15.5px;padding:10px 13px}
@@ -495,7 +497,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.0</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.1</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -525,7 +527,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
     <div class="p-head"><div class="seg2" id="panelTabs"><button data-m="todo" class="on">✅ To Do</button><button data-m="memo">📝 Memo</button></div><span class="muted" id="todoCount"></span></div>
     <div class="pbox" id="todoBox">
     <form id="addForm" autocomplete="off"><input id="addIn" placeholder="할 일을 입력하고 Enter" maxlength="80"><button type="submit">추가</button></form>
-    <div class="hint">항목 클릭 → 숫자 입력 → <kbd>Enter</kbd> = 우선순위 · 더블클릭 = 수정</div>
+    <div class="hint">항목 클릭 → 숫자 입력 → <kbd>Enter</kbd> = 우선순위 · 우클릭·더블클릭 = 이름 수정</div>
     <ul id="todoList"></ul>
     </div>
     <div class="pbox hidden" id="memoBox">
@@ -942,16 +944,18 @@ list.addEventListener('click',e=>{
   if(sel===id){sel=null}else sel=id;
   buf='';renderTodos();
 });
-list.addEventListener('dblclick',e=>{
-  const txt=e.target.closest('.txt');if(!txt||txt.querySelector('input'))return;
-  const li=txt.closest('.todo'),t=getDay(false).todos.find(x=>x.id===li.dataset.id);if(!t)return;
+function editTodoText(li){
+  const txt=$('.txt',li);if(!txt||txt.querySelector('input'))return;
+  const t=getDay(false).todos.find(x=>x.id===li.dataset.id);if(!t)return;
   const inp=document.createElement('input');inp.value=t.t;inp.maxLength=80;
   txt.textContent='';txt.appendChild(inp);inp.focus();inp.select();
   let done=false;
   const fin=ok=>{if(done)return;done=true;const v=inp.value.trim();if(ok&&v){t.t=v;save()}renderTodos()};
   inp.addEventListener('keydown',ev=>{ev.stopPropagation();if(ev.key==='Enter')fin(true);else if(ev.key==='Escape')fin(false)});
   inp.addEventListener('blur',()=>fin(true));
-});
+}
+list.addEventListener('dblclick',e=>{const txt=e.target.closest('.txt');if(txt)editTodoText(txt.closest('.todo'))});
+list.addEventListener('contextmenu',e=>{const li=e.target.closest('.todo');if(!li)return;e.preventDefault();editTodoText(li)});
 
 /* keyboard: priority + day nav */
 document.addEventListener('keydown',e=>{
@@ -1567,7 +1571,7 @@ function listEditor(host,o){
     const chk=document.createElement('button');chk.className='chk sm';chk.innerHTML=CHECK;chk.title='완료';
     chk.onclick=()=>{it.d=!it.d;save();o.change()};
     const t=document.createElement('span');t.className='t';t.textContent=it.t;
-    t.ondblclick=()=>{
+    const edit=()=>{
       if(t.querySelector('input'))return;
       const inp=document.createElement('input');inp.value=it.t;inp.maxLength=60;
       t.textContent='';t.appendChild(inp);inp.focus();inp.select();
@@ -1576,6 +1580,7 @@ function listEditor(host,o){
       inp.onkeydown=ev=>{ev.stopPropagation();if(ev.key==='Enter')fin(true);else if(ev.key==='Escape')fin(false)};
       inp.onblur=()=>fin(true);
     };
+    t.ondblclick=edit;li.oncontextmenu=e=>{e.preventDefault();edit()};
     const x=document.createElement('button');x.className='x';x.textContent='×';x.title='삭제';
     x.onclick=()=>{const a=o.get(true);a.splice(a.indexOf(it),1);save();o.change()};
     li.appendChild(chk);li.appendChild(t);li.appendChild(x);ul.appendChild(li);
