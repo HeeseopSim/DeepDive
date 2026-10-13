@@ -137,7 +137,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,410px);gap:18
 .cl,.cl.plan{color:#fff}
 .cl{justify-content:center;text-align:center}
 .cl.ovf{justify-content:flex-start;text-align:left}
-.cl span{font-weight:800;-webkit-text-stroke:0;text-shadow:0 1px 2px rgba(0,0,0,.7),0 2px 7px rgba(0,0,0,.5),0 0 14px rgba(0,0,0,.28)}
+.cl span{font-weight:800;-webkit-text-stroke:0;text-shadow:none;background:#000;padding:1px 7px 2px;border-radius:3px;max-width:100%;box-sizing:border-box}
 .cl.fillin{animation:lbl .3s ease var(--dl) both}
 @keyframes lbl{from{opacity:0}to{opacity:1}}
 .now{position:absolute;width:5px;margin-left:-2.5px;background:#fff;box-shadow:0 0 0 2px #000;z-index:20;pointer-events:none}
@@ -530,7 +530,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.4</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.5</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
