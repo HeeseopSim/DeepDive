@@ -77,22 +77,41 @@ class DpForm : Form
             c.SetVirtualHostNameToFolderMapping("dp.local", dir, CoreWebView2HostResourceAccessKind.Allow);
             c.WebMessageReceived += (s2, e2) =>
             {
-                if (e2.TryGetWebMessageAsString() == "toggle-fs") SetFull(!full);
+                string msg = e2.TryGetWebMessageAsString();
+                if (msg == "toggle-fs") SetFull(!full);
+                else if (msg == "startmax:0" || msg == "startmax:1")
+                {
+                    try { File.WriteAllText(Path.Combine(dir, "startmax.txt"), msg.Substring(9)); } catch (Exception) { }
+                }
             };
             c.NavigationCompleted += (s2, e2) =>
             {
                 c.PostWebMessageAsString(full ? "fs:on" : "fs:off");
             };
+            bool wantFull = false;
             foreach (string a in Environment.GetCommandLineArgs())
             {
-                if (a == "--fullscreen") SetFull(true);
+                if (a == "--fullscreen") wantFull = true;
             }
+            if (wantFull) SetFull(true);
+            else if (StartMax()) WindowState = FormWindowState.Maximized;
             c.Navigate("https://dp.local/HL.html");
         }
         catch (Exception)
         {
             Fallback();
         }
+    }
+
+    bool StartMax()
+    {
+        try
+        {
+            string f = Path.Combine(dir, "startmax.txt");
+            if (File.Exists(f) && File.ReadAllText(f).Trim() == "0") return false;
+        }
+        catch (Exception) { }
+        return true;
     }
 
     void SetFull(bool on)
