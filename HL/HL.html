@@ -510,6 +510,12 @@ html input,html textarea{cursor:text !important}
 .memo-colors .mc.rs{background:none;box-shadow:0 0 0 1.5px #fff;font-size:10px;line-height:11px;color:#fff}
 .memo-foot{align-items:center;gap:8px}
 
+/* neon: no outlines, glow stays inside the rectangle */
+.blk.olw{display:none}
+.blk .glow{z-index:auto;filter:none;--ga:.8;box-shadow:inset 10px 0 9px -7px rgba(255,255,255,calc(var(--l,0)*var(--ga))),inset -10px 0 9px -7px rgba(255,255,255,calc(var(--r,0)*var(--ga))),inset 0 10px 9px -7px rgba(255,255,255,calc(var(--t,0)*var(--ga))),inset 0 -10px 9px -7px rgba(255,255,255,calc(var(--bt,0)*var(--ga)))}
+.blk .glow.plan{--ga:.45}
+.blk .run.rec{filter:saturate(2.4) brightness(1.3)}
+
 /* persona-style backdrop */
 body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bgimg,none) center bottom/cover no-repeat;opacity:1;filter:brightness(var(--bgb,1.18)) saturate(1.2) contrast(1.12);pointer-events:none}
 body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(2,0,1,.3) 0%,rgba(8,0,2,.1) 45%,rgba(150,0,16,.2) 100%)}
@@ -530,7 +536,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.5</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.6</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -741,7 +747,6 @@ function addBlock(b,layerName,plans,anim,extra){
   const rowH=100/24, sj=subj(b.k);
   const tx=lum(sj.color)>.6?'#1a1033':'#fff';
   const wrap=document.createElement('div');wrap.className='blk '+layerName;layer.appendChild(wrap);
-  const olWrap=OLW[layerName];
   const mk=(cls,r,cs,ce,parent)=>{
     const el=document.createElement('div');
     el.className=cls;
@@ -758,9 +763,11 @@ function addBlock(b,layerName,plans,anim,extra){
     const cs=Math.max(b.s,r*60)-r*60, ce=Math.min(b.e,(r+1)*60)-r*60, n=Math.max(1,Math.ceil((ce-cs)/10));
     const off=(Math.max(b.s,r*60)-b.s)/10;
     const anims=el=>{if(anim){el.classList.add('fillin');el.style.setProperty('--dl',Math.min(1.5,off*0.08)+'s');el.style.setProperty('--dur',(n*0.08)+'s');el.style.setProperty('--n',n)}};
-    anims(mk('glow '+layerName,r,cs,ce));
-    anims(mk('ol',r,cs,ce,olWrap));
     const run=mk('run '+layerName+(extra?' '+extra:''),r,cs,ce,wrap);anims(run);
+    const gl=mk('glow '+layerName,r,cs,ce,wrap);anims(gl);
+    const rF=Math.floor(b.s/60),rL=Math.floor((b.e-1)/60);
+    gl.style.setProperty('--l',r===rF?1:0);gl.style.setProperty('--t',r===rF?1:0);
+    gl.style.setProperty('--r',r===rL?1:0);gl.style.setProperty('--bt',r===rL?1:0);
     if(plans)for(const pb of plans){
       const ps=Math.max(pb.s,r*60+cs),pe=Math.min(pb.e,r*60+ce);
       if(pe>ps){const st=mk('pstrip',r,ps-r*60,pe-r*60);st.style.setProperty('--pc',subj(pb.k).color);st.style.height='4px'}
