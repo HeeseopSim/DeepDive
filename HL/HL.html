@@ -228,6 +228,8 @@ footer{padding:14px 24px 20px;display:flex;justify-content:center}
 .pbox{display:flex;flex-direction:column;flex:1;min-height:0}
 .pbox.hidden{display:none}
 #memoIn{flex:1;min-height:0;margin:2px 16px 0;resize:none;border-radius:14px;border:1px solid var(--line);background-color:rgba(0,0,0,.28);background-image:linear-gradient(to bottom,transparent 27px,rgba(255,255,255,.09) 28px);background-size:100% 28px;background-attachment:local;padding:0 14px;font:inherit;font-size:14px;line-height:28px;color:var(--text);outline:none;transition:.2s;scrollbar-width:thin;scrollbar-color:rgba(255,51,71,.5) transparent}
+#memoIn{overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+#memoIn:empty::before{content:attr(data-ph);color:rgba(255,255,255,.35);pointer-events:none}
 #memoIn:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(255,51,71,.22)}
 .memo-foot{display:flex;justify-content:space-between;padding:7px 20px 12px;font-size:11.5px;color:var(--muted)}
 .memo-foot .saved{color:#a7f3d0}
@@ -536,7 +538,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.6</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.7</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -570,7 +572,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
     <ul id="todoList"></ul>
     </div>
     <div class="pbox hidden" id="memoBox">
-      <textarea id="memoIn" placeholder="이 날의 메모를 자유롭게 적어보세요…" spellcheck="false"></textarea>
+      <div id="memoIn" contenteditable="true" data-ph="이 날의 메모를 자유롭게 적어보세요… (글자를 드래그해서 선택한 뒤 아래 팔레트로 색을 바꿀 수 있어요)" spellcheck="false"></div>
       <div class="memo-foot"><span id="memoSt">자동 저장돼요</span><div class="memo-colors" id="memoColors" title="메모 글자색"></div><span id="memoCnt"></span></div>
     </div>
   </section>
@@ -628,7 +630,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   <div class="pop-btns"><button class="rm" id="popRm">삭제</button><button id="popNo">취소</button><button class="ok" id="popOk">저장</button></div>
 </div>
 <div id="subModal" class="hidden"><div class="mbox">
-  <h3>과목 · 색상 편집</h3><p>이름을 바꾸고 12가지 색 중에서 골라보세요. (직접 고르기도 가능) 기록은 진한 색, 예정은 연한 색으로 칠해져요. (과목 단축키: 숫자 1~9)</p>
+  <h3>과목 · 색상 편집</h3><p>이름을 바꾸고 무지개 버튼으로 색을 직접 골라요. 자주 쓰는 색은 팔레트에 저장해 두면 여기에 나타나요. 기록은 진한 색, 예정은 연한 색으로 칠해져요. (과목 단축키: 숫자 1~9)</p>
   <div id="subRows"></div>
   <div class="mfoot"><button id="subAdd">+ 과목 추가</button><button class="ok" id="subDone">완료</button></div>
 </div></div>
@@ -965,7 +967,7 @@ function renderTodos(){
     li.className='todo'+(t.c?' c-'+t.c:'')+(t.d?' done':'')+(sel===t.id?' sel':'')+(newTodo===t.id?' enter':'')+(lastTog===t.id?' tog':'');
     li.dataset.id=t.id;
     if(t.c&&t.c[0]==='#')li.style.setProperty('--c',t.c);
-    li.innerHTML=`<button class="chk" data-a="chk" title="완료">${CHECK}</button><div class="txt"></div><span class="prio${t.p?' has':''}">${t.p||''}</span><div class="tools-r"><button class="dot pink" data-a="col" data-c="pink" title="핑크"></button><button class="dot orange" data-a="col" data-c="orange" title="주황"></button><button class="dot blue" data-a="col" data-c="blue" title="파랑"></button><button class="dot green" data-a="col" data-c="green" title="초록"></button><button class="dot pal" data-a="pal" title="팔레트에서 고르기"></button><button class="dot none" data-a="col" data-c="" title="색 없음"></button><button class="del" data-a="del" title="삭제">×</button></div>`;
+    li.innerHTML=`<button class="chk" data-a="chk" title="완료">${CHECK}</button><div class="txt"></div><span class="prio${t.p?' has':''}">${t.p||''}</span><div class="tools-r">${cpFavs().filter(Boolean).map(c=>`<button class="dot fav" data-a="fav" data-c="${c}" style="background:${c}" title="저장해 둔 색"></button>`).join('')}<button class="dot pal" data-a="pal" title="팔레트에서 고르기"></button><button class="dot none" data-a="col" data-c="" title="색 없음"></button><button class="del" data-a="del" title="삭제">×</button></div>`;
     $('.txt',li).textContent=t.t;
     list.appendChild(li);
   }
@@ -1004,7 +1006,7 @@ list.addEventListener('click',e=>{
     const act=a.dataset.a;
     if(act==='chk'){t.d=!t.d;lastTog=id}
     else if(act==='pal'){pickColor(e,t.c&&t.c[0]==='#'?t.c:'#ff3ea5',hex=>{t.c=hex;save();renderTodos()});return}
-    else if(act==='col'){t.c=a.dataset.c}
+    else if(act==='col'||act==='fav'){t.c=a.dataset.c}
     else if(act==='del'){d.todos=d.todos.filter(x=>x!==t);if(sel===id){sel=null;buf=''}}
     save();renderTodos();return;
   }
@@ -1027,7 +1029,7 @@ list.addEventListener('contextmenu',e=>{const li=e.target.closest('.todo');if(!l
 /* keyboard: priority + day nav */
 document.addEventListener('keydown',e=>{
   const tag=(e.target.tagName||'');
-  if(tag==='INPUT'||tag==='TEXTAREA')return;
+  if(tag==='INPUT'||tag==='TEXTAREA'||e.target.isContentEditable)return;
   if(sel){
     if(/^\d$/.test(e.key)){e.preventDefault();if(buf.length<2)buf+=e.key;renderBuf();return}
     if(e.key==='Backspace'){e.preventDefault();buf=buf.slice(0,-1);renderBuf();return}
@@ -1080,14 +1082,12 @@ function renderModal(){
     inp.oninput=()=>{x.name=inp.value;save()};
     row.appendChild(inp);
     const sws=document.createElement('div');sws.className='sws';
-    RAINBOW.forEach((c,ci)=>{
-      const b=document.createElement('button');b.className='sw'+(c.toLowerCase()===x.color.toLowerCase()?' on':'');
-      b.style.setProperty('--c',c);b.title=CNAME[ci];
-      b.onclick=()=>{x.color=c;save();renderModal()};
-      sws.appendChild(b);
-    });
+    const cur=document.createElement('button');cur.className='sw on';cur.style.setProperty('--c',x.color);cur.title='현재 색';sws.appendChild(cur);
+    cpFavs().filter(Boolean).forEach(c=>{
+      const b=document.createElement('button');b.className='sw';b.style.setProperty('--c',c);b.title='저장해 둔 색';
+      b.onclick=()=>{x.color=c;save();renderModal()};sws.appendChild(b)});
     const cp=document.createElement('button');cp.className='palbtn';cp.title='팔레트에서 직접 고르기';
-    cp.onclick=ev=>pickColor(ev,x.color,hex=>{x.color=hex;save();sws.querySelectorAll('.sw').forEach(b=>b.classList.remove('on'));renderSubbar();renderBlocks()});
+    cp.onclick=ev=>pickColor(ev,x.color,hex=>{x.color=hex;save();cur.style.setProperty('--c',hex);renderSubbar();renderBlocks()});
     sws.appendChild(cp);row.appendChild(sws);
     const del=document.createElement('button');del.className='del';del.textContent='×';del.title='삭제';
     del.onclick=()=>{if(db.subjects.length<2){toast('과목은 최소 1개가 필요해요');return}
@@ -1266,7 +1266,7 @@ cpH.oninput=()=>{cpC.h=+cpH.value;cpRender(true)};
 cpHex.oninput=()=>{let v=cpHex.value.trim();if(v&&v[0]!=='#')v='#'+v;const o=hex2hsv(v);if(o){cpC=o;cpRender(true)}};
 cpHex.onblur=()=>cpRender(false);
 $('#cpSave').onclick=()=>{const f=cpFavs(),hex=hsv2hex(cpC.h,cpC.s,cpC.v);let i=f.indexOf('');if(i<0){f.pop();f.unshift(hex)}else f[i]=hex;save();cpRender(false);toast('자주 쓰는 색에 저장했어요')};
-function closeColor(){cpop.classList.add('hidden');cpCb=null}
+function closeColor(){cpop.classList.add('hidden');cpCb=null;if(typeof applyMemoColor==='function')applyMemoColor()}
 $('#cpOk').onclick=closeColor;
 function pickColor(ev,cur,cb){
   cpCb=null;cpC=hex2hsv(cur)||{h:0,s:1,v:1};cpRender(false);cpCb=cb;
@@ -1416,7 +1416,7 @@ function playSel(){
 ['chain','check','cancel'].forEach(k=>{const old=sfx[k];sfx[k]=()=>{if(!playSel())old()}});
 document.addEventListener('keydown',e=>{
   if(!sndOn)return;
-  const t=e.target;if(!t||!t.tagName||!/^(INPUT|TEXTAREA)$/.test(t.tagName))return;
+  const t=e.target;if(!t||!t.tagName||!(/^(INPUT|TEXTAREA)$/.test(t.tagName)||t.isContentEditable))return;
   if(['range','color','file','checkbox'].includes(t.type))return;
   if(e.key==='Enter'){if(t.tagName==='INPUT')sfx.chain();else sfx.key('Enter');return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
@@ -1546,31 +1546,69 @@ function setPanel(m){
   renderTodos();
   if(m==='memo')requestAnimationFrame(()=>$('#memoIn').focus());
 }
+const memoEl=$('#memoIn');
+function memoToRuns(){
+  const out=[];
+  const push=(t,c)=>{if(!t)return;const l=out[out.length-1];if(l&&l[1]===c)l[0]+=t;else out.push([t,c])};
+  const endsNL=()=>{const l=out[out.length-1];return !l||l[0].endsWith('\n')};
+  const hex=c=>{if(!c)return '';const m=/rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c);if(m)return '#'+[m[1],m[2],m[3]].map(v=>(+v).toString(16).padStart(2,'0')).join('');return /^#[0-9a-f]{6}$/i.test(c)?c.toLowerCase():''};
+  const walk=(n,col)=>{
+    if(n.nodeType===3){push(n.nodeValue,col);return}
+    if(n.nodeType!==1)return;
+    if(n.tagName==='BR'){push('\n',col);return}
+    let c=col;const sc=hex(n.style&&n.style.color)||(n.tagName==='FONT'?hex(n.getAttribute('color')):'');if(sc)c=sc;
+    const blk=n.tagName==='DIV'||n.tagName==='P';
+    if(blk&&out.length&&!endsNL())push('\n','');
+    n.childNodes.forEach(k=>walk(k,c));
+  };
+  memoEl.childNodes.forEach(k=>walk(k,''));
+  while(out.length&&out[out.length-1][0].endsWith('\n')&&out[out.length-1][0].length===1)out.pop();
+  return out;
+}
+function memoFromRuns(runs,plain){
+  memoEl.textContent='';
+  if(!runs||!runs.length){memoEl.textContent=plain||'';return}
+  runs.forEach(([t,c])=>{
+    const sp=document.createElement(c?'span':'span');if(c)sp.style.color=c;sp.textContent=t;memoEl.appendChild(sp);
+  });
+}
 function renderMemo(){
-  const m=dayBy(curKey,false).memo||'',el=$('#memoIn');
-  if(el.value!==m)el.value=m;
+  const d=dayBy(curKey,false),m=d.memo||'';
+  memoFromRuns(d.memoC,m);
   $('#memoCnt').textContent=m.length?m.length+'자':'';
   $('#memoSt').textContent='자동 저장돼요';$('#memoSt').classList.remove('saved');
 }
-$('#memoIn').addEventListener('input',()=>{
-  const v=$('#memoIn').value,k=curKey;
+function memoSaveNow(k){
+  const runs=memoToRuns(),v=runs.map(r=>r[0]).join('');
   $('#memoCnt').textContent=v.length?v.length+'자':'';
+  if(v||dayBy(k,false).memo){const d=dayBy(k,true);d.memo=v;if(runs.some(r=>r[1]))d.memoC=runs;else delete d.memoC;save()}
+}
+memoEl.addEventListener('input',()=>{
+  const k=curKey;
   $('#memoSt').textContent='저장 중…';$('#memoSt').classList.remove('saved');
   clearTimeout(memoT);
-  memoT=setTimeout(()=>{
-    if(v||dayBy(k,false).memo){dayBy(k,true).memo=v;save()}
-    $('#memoSt').textContent='저장됨 ✓';$('#memoSt').classList.add('saved');
-  },350);
+  memoT=setTimeout(()=>{memoSaveNow(k);$('#memoSt').textContent='저장됨 ✓';$('#memoSt').classList.add('saved')},350);
 });
+memoEl.addEventListener('paste',e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,t)});
+let memoRange=null;
+document.addEventListener('selectionchange',()=>{const sl=getSelection();if(sl.rangeCount&&memoEl.contains(sl.anchorNode)&&memoEl.contains(sl.focusNode))memoRange=sl.getRangeAt(0).cloneRange()});
+function memoApply(hex){
+  if(!memoRange||memoRange.collapsed){toast('색을 바꿀 글자를 먼저 드래그해서 선택하세요');return false}
+  memoEl.focus();const sl=getSelection();sl.removeAllRanges();sl.addRange(memoRange);
+  document.execCommand('styleWithCSS',false,true);
+  if(hex)document.execCommand('foreColor',false,hex);else document.execCommand('removeFormat');
+  if(sl.rangeCount)memoRange=sl.getRangeAt(0).cloneRange();
+  const k=curKey;clearTimeout(memoT);memoSaveNow(k);return true;
+}
 function applyMemoColor(){
-  const c=(db.ui&&db.ui.memoColor)||'';$('#memoIn').style.color=c;
   const box=$('#memoColors');box.innerHTML='';
-  const add=(col,cls,txt)=>{const b=document.createElement('button');b.className='mc '+(cls||'')+(col&&col.toLowerCase()===c.toLowerCase()?' on':'');if(col)b.style.setProperty('--c',col);if(txt)b.textContent=txt;return b};
-  RAINBOW.forEach((col,i)=>{const b=add(col);b.title=CNAME[i];b.onclick=()=>{if(!db.ui)db.ui={};db.ui.memoColor=col;save();applyMemoColor()};box.appendChild(b)});
-  const cu=add('', 'cu');cu.className='mc cu palbtn';cu.title='팔레트에서 직접 고르기';cu.style.cssText='width:17px;height:17px;border-radius:50%';
-  cu.onclick=ev=>pickColor(ev,c||'#ffffff',hex=>{if(!db.ui)db.ui={};db.ui.memoColor=hex;save();$('#memoIn').style.color=hex});
+  const keep=b=>b.addEventListener('mousedown',e=>e.preventDefault());
+  cpFavs().filter(Boolean).forEach(col=>{const b=document.createElement('button');b.className='mc';b.style.setProperty('--c',col);b.title='저장해 둔 색 · 선택한 글자에 적용';keep(b);b.onclick=()=>memoApply(col);box.appendChild(b)});
+  const cu=document.createElement('button');cu.className='mc cu palbtn';cu.title='팔레트에서 색 고르기 · 선택한 글자에 적용';cu.style.cssText='width:17px;height:17px;border-radius:50%';keep(cu);
+  cu.onclick=ev=>{if(!memoRange||memoRange.collapsed){toast('색을 바꿀 글자를 먼저 드래그해서 선택하세요');return}
+    pickColor(ev,'#ffffff',hex=>memoApply(hex))};
   box.appendChild(cu);
-  const rs=add('','rs','↺');rs.title='기본 글자색';rs.onclick=()=>{if(db.ui)delete db.ui.memoColor;save();applyMemoColor()};box.appendChild(rs);
+  const rs=document.createElement('button');rs.className='mc rs';rs.textContent='↺';rs.title='선택한 글자 색 지우기';keep(rs);rs.onclick=()=>memoApply('');box.appendChild(rs);
 }
 applyMemoColor();
 document.querySelectorAll('#panelTabs button').forEach(b=>b.onclick=()=>setPanel(b.dataset.m));
