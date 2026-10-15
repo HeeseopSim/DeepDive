@@ -514,9 +514,9 @@ html input,html textarea{cursor:text !important}
 
 /* neon: no outlines, glow stays inside the rectangle */
 .blk.olw{display:none}
-.blk .glow{z-index:auto;filter:none;--ga:.8;box-shadow:inset 10px 0 9px -7px rgba(255,255,255,calc(var(--l,0)*var(--ga))),inset -10px 0 9px -7px rgba(255,255,255,calc(var(--r,0)*var(--ga))),inset 0 10px 9px -7px rgba(255,255,255,calc(var(--t,0)*var(--ga))),inset 0 -10px 9px -7px rgba(255,255,255,calc(var(--bt,0)*var(--ga)))}
-.blk .glow.plan{--ga:.45}
-.blk .run.rec{filter:saturate(2.4) brightness(1.3)}
+.blk .glow{z-index:auto;filter:none;--ga:.55;--gc:color-mix(in srgb,var(--c) 60%,#000);box-shadow:inset 10px 0 9px -7px color-mix(in srgb,var(--gc) calc(var(--l,0)*var(--ga)*100%),transparent),inset -10px 0 9px -7px color-mix(in srgb,var(--gc) calc(var(--r,0)*var(--ga)*100%),transparent),inset 0 10px 9px -7px color-mix(in srgb,var(--gc) calc(var(--t,0)*var(--ga)*100%),transparent),inset 0 -10px 9px -7px color-mix(in srgb,var(--gc) calc(var(--bt,0)*var(--ga)*100%),transparent)}
+.blk .glow.plan{--ga:.25;--gc:var(--c)}
+.blk .run.rec{filter:saturate(1.5)}
 
 /* persona-style backdrop */
 body::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--bgimg,none) center bottom/cover no-repeat;opacity:1;filter:brightness(var(--bgb,1.18)) saturate(1.2) contrast(1.12);pointer-events:none}
@@ -538,7 +538,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.7</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 3.8</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
