@@ -701,13 +701,19 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .legend{gap:10px;flex-wrap:wrap}
 #ttPanel .p-head{flex-wrap:wrap;row-gap:4px}
 .sums{gap:6px}
+
+/* ver 4.3: wider subject / estimate boxes */
+#addSub{width:100px}
+#addEst{width:96px}
+.tsub{width:80px;font-size:14px}
+.est{width:90px;font-size:15px}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.2</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.3</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
