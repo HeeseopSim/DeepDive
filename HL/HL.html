@@ -713,13 +713,18 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .tth{width:34px !important}
 .tth div{font-size:11px}
 .ttm{padding-left:34px !important}
+
+.tl{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;overflow:hidden;line-height:1.15;padding:0 2px}
+.tl span{background:#111;color:#fff;font-weight:700;padding:0 4px 1px;border-radius:2px;max-width:100%;word-break:keep-all;overflow-wrap:anywhere}
+.tl.ov{justify-content:flex-start}
+.tl.ov span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.6</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.7</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -2465,22 +2470,30 @@ function ddHtml(keys){
   const a=db.ddays.map(x=>({x,n:ddiff(x.date)})).filter(o=>keys?keys(o.x.date):o.n>=-1).sort((p,q)=>p.x.date<q.x.date?-1:1).slice(0,4);
   return a.map(o=>`<span class="dd"><b>${ddText(o.n)}</b> ${esc(o.x.t)}</span>`).join('');
 }
-function ttHtml(d,hpx){
-  const subs=db.subjects;let b='';
+function ttHtml(d,hpx,gw){
+  let b='',labs='';
+  const rowH=hpx/24;
   const seg=(s,e)=>{const out=[];for(let m=s;m<e;){const h=Math.floor(m/60),en=Math.min(e,(h+1)*60);out.push({h,s:m-h*60,e:en-h*60});m=en}return out};
   const all=[];(d.plans||[]).forEach(x=>all.push({...x,kind:'plan'}));(d.recs||[]).forEach(x=>all.push({...x,kind:'rec'}));
   all.sort((p,q)=>(p.kind==='plan'?0:1)-(q.kind==='plan'?0:1));
   all.forEach(x=>{
-    const sj=subj(x.k),col=sj.color,tx=lum(col)>.6?'#111':'#fff';let first=true;
-    seg(x.s-DAY0,x.e-DAY0).forEach(g=>{
-      const st=`left:${g.s/60*100}%;width:${(g.e-g.s)/60*100}%;top:${g.h/24*100}%;height:${100/24}%;--c:${col}`;
-      let lab='';if(first&&x.t){first=false;lab=`<span style="color:${x.kind==='rec'?tx:'#111'}">${esc(x.t)}</span>`}
-      b+=`<div class="tb ${x.kind}" style="${st}">${lab}</div>`;
+    const col=subj(x.k).color,sg=seg(x.s-DAY0,x.e-DAY0);
+    sg.forEach(g=>{
+      b+=`<div class="tb ${x.kind}" style="left:${g.s/60*100}%;width:${(g.e-g.s)/60*100}%;top:${g.h/24*100}%;height:${100/24}%;--c:${col}"></div>`;
     });
+    if(!x.t)return;
+    // label (plans and records alike): centered black pill on the widest segment, shrunk to fit
+    let best=sg[0];sg.forEach(g=>{if(g.e-g.s>best.e-best.s)best=g});
+    const W=(best.e-best.s)/60*gw,n=[...x.t].length;
+    let f=11,fit=false,lines=1;
+    for(;f>=7;f-=.5){const per=Math.max(1,Math.floor((W-10)/(f*.98)));lines=Math.ceil(n/per);if(lines*f*1.25+2<=rowH){fit=true;break}}
+    const top=`top:${best.h/24*100}%;height:${100/24}%`;
+    if(fit)labs+=`<div class="tl" style="left:${best.s/60*100}%;width:${(best.e-best.s)/60*100}%;${top};font-size:${f}px"><span>${esc(x.t)}</span></div>`;
+    else labs+=`<div class="tl ov" style="left:${best.s/60*100}%;width:${(60-best.s)/60*100}%;${top};font-size:9px"><span>${esc(x.t)}</span></div>`;
   });
   let hrs='';for(let h=0;h<24;h++)hrs+=`<div>${ampm((h+5)%24)}</div>`;
   let mins='';for(let i=0;i<6;i++)mins+=`<span>:${pad(i*10)}</span>`;
-  return `<div class="ttw"><div class="ttm"><i></i>${mins}</div><div class="tt" style="height:${hpx}px"><div class="tth">${hrs}</div><div class="ttg">${b}</div></div></div>`;
+  return `<div class="ttw"><div class="ttm"><i></i>${mins}</div><div class="tt" style="height:${hpx}px"><div class="tth">${hrs}</div><div class="ttg">${b}${labs}</div></div></div>`;
 }
 function sumHtml(d){
   const rows=dayStats(d),f=m=>m?fmtEst(m):'–';
@@ -2508,8 +2521,8 @@ function daySheet(k,land){
   const sum=pgBox('⏱ 과목별 시간 (ETC 포함)',sumHtml(d));
   const hpx=land?640:900;
   let body;
-  if(land)body=`<div class="pg-b day l"><div class="c1">${ttHtml(d,hpx)}</div><div class="c2"><div class="cc">${goals}${sum}</div><div class="cc">${todos}${memo}</div></div></div>`;
-  else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}${memo}${sum}</div><div class="c1">${ttHtml(d,hpx)}</div></div>`;
+  if(land)body=`<div class="pg-b day l"><div class="c1">${ttHtml(d,hpx,land?526:387)}</div><div class="c2"><div class="cc">${goals}${sum}</div><div class="cc">${todos}${memo}</div></div></div>`;
+  else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}${memo}${sum}</div><div class="c1">${ttHtml(d,hpx,land?526:387)}</div></div>`;
   return head+body;
 }
 function weekSheet(k,land){
