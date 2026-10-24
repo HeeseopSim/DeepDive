@@ -720,7 +720,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.4</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.5</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -880,12 +880,17 @@ const $=(s,el=document)=>el.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
 const ampm=h=>`${h<12?'오전':'오후'} ${h%12===0?12:h%12}시`;
 const keyOf=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const DAY0=300; // a planner day runs 05:00 -> 05:00 next day
+const todayKey=()=>keyOf(new Date(Date.now()-DAY0*60000));
 const parseKey=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
 const DOW=['일','월','화','수','목','금','토'];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
-const fmtT=m=>`${pad(Math.floor(m/60))}:${pad(m%60)}`;
+const fmtT=m=>`${pad(Math.floor(m/60)%24)}:${pad(m%60)}`;
 const fmtDur=m=>{const h=Math.floor(m/60),r=m%60;return h?(r?`${h}시간 ${r}분`:`${h}시간`):`${r}분`};
+function parseStart(v){const m=parseHM(v);if(m==null)return null;return m<DAY0?m+1440:m}
+function parseEnd(v,s){let m=parseHM(v);if(m==null)return null;while(m<=s)m+=1440;return m>DAY0+1440?null:m}
+const pTimes=(a,b)=>{const s=parseStart($(a).value);return [s,s==null?null:parseEnd($(b).value,s)]};
 function parseHM(v){const m=/^\s*(\d{1,2})\s*[:.]?\s*(\d{2})\s*$/.exec(v||'');if(!m)return null;const h=+m[1],mi=+m[2];if(mi>59||h>24||(h===24&&mi>0))return null;return h*60+mi}
 function placeBlock(arr,nb){const out=[];for(const x of arr){if(x.e<=nb.s||x.s>=nb.e){out.push(x);continue}if(x.s<nb.s)out.push({...x,e:nb.s});if(x.e>nb.e)out.push({...x,id:uid(),s:nb.e})}out.push(nb);return out}
 
@@ -906,6 +911,30 @@ function normalize(){
   if(!db.v||db.v<2){
     for(const k in (db.days||{})){const d=db.days[k];['plans','recs'].forEach(f=>(d[f]||[]).forEach(b=>{b.s*=10;b.e*=10}))}
     db.v=2;
+    try{localStorage.setItem(STORE,JSON.stringify(db))}catch(e){}
+  }
+  if(db.v<3){
+    // blocks before 05:00 now belong to the tail of the previous day
+    const moves=[];
+    for(const k in (db.days||{})){
+      const d=db.days[k];
+      ['plans','recs'].forEach(f=>{
+        const keep=[];
+        (d[f]||[]).forEach(b=>{
+          if(b.s>=DAY0){keep.push(b);return}
+          const head={...b,e:Math.min(b.e,DAY0)};
+          moves.push([k,f,{...head,s:head.s+1440,e:head.e+1440}]);
+          if(b.e>DAY0)keep.push({...b,id:b.id+'b',s:DAY0});
+        });
+        d[f]=keep;
+      });
+    }
+    moves.forEach(([k,f,b])=>{
+      const dt=parseKey(k);dt.setDate(dt.getDate()-1);const pk=keyOf(dt);
+      const pd=db.days[pk]||(db.days[pk]={plans:[],recs:[],todos:[]});
+      (pd[f]=pd[f]||[]).push(b);
+    });
+    db.v=3;
     try{localStorage.setItem(STORE,JSON.stringify(db))}catch(e){}
   }
   delete db.timer;
@@ -930,7 +959,7 @@ const dayBy=(k,create)=>{
 };
 const getDay=(create)=>dayBy(curKey,create);
 
-let today=keyOf(new Date());
+let today=todayKey();
 let curKey=today;
 let sel=null, buf='', preview=null, popCtx=null, lastAdded=null, lastTog=null, newTodo=null;
 
@@ -941,15 +970,18 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');cl
 /* timetable skeleton */
 const hoursEl=$('#hours'),grid=$('#grid'),ttScroll=$('#ttScroll');
 for(let h=0;h<24;h++){
-  const d=document.createElement('div');d.textContent=ampm(h);hoursEl.appendChild(d);
-  const r=document.createElement('div');r.className='hrow'+(h<6||h>=22?' night':'');
+  const hh=(h+5)%24;
+  const d=document.createElement('div');d.textContent=ampm(hh);hoursEl.appendChild(d);
+  const r=document.createElement('div');r.className='hrow'+(hh<6||hh>=22?' night':'');
   r.innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i>';grid.appendChild(r);
 }
 const layer=document.createElement('div');layer.className='layer';grid.appendChild(layer);
 const nowEl=document.createElement('div');nowEl.className='now';nowEl.style.display='none';layer.appendChild(nowEl);
 
 let OLW={};
-function addBlock(b,layerName,plans,anim,extra){
+function addBlock(b0,layerName,plans0,anim,extra){
+  const b={...b0,s:b0.s-DAY0,e:b0.e-DAY0};
+  const plans=plans0?plans0.map(x=>({...x,s:x.s-DAY0,e:x.e-DAY0})):plans0;
   const rowH=100/24, sj=subj(b.k);
   const tx=lum(sj.color)>.6?'#1a1033':'#fff';
   const wrap=document.createElement('div');wrap.className='blk '+layerName;layer.appendChild(wrap);
@@ -1023,13 +1055,14 @@ function fitLabels(){
 function updateNow(){
   const rows=[...hoursEl.children];
   rows.forEach(r=>r.classList.remove('cur'));
-  today=keyOf(new Date());
+  today=todayKey();
   if(curKey!==today){nowEl.style.display='none';return}
-  const n=new Date(),h=n.getHours(),m=n.getMinutes();
-  rows[h].classList.add('cur');
+  const n=new Date();let nm=n.getHours()*60+n.getMinutes();if(nm<DAY0)nm+=1440;
+  const r=Math.floor((nm-DAY0)/60),m=(nm-DAY0)%60;
+  rows[r].classList.add('cur');
   nowEl.style.display='block';
   nowEl.style.left=(m/60*100)+'%';
-  nowEl.style.top=(h/24*100)+'%';
+  nowEl.style.top=(r/24*100)+'%';
   nowEl.style.height=(100/24)+'%';
 }
 
@@ -1038,7 +1071,7 @@ let drag=null;
 const minAt=e=>{
   const r=grid.getBoundingClientRect();
   const x=clamp((e.clientX-r.left)/r.width,0,.99999), y=clamp((e.clientY-r.top)/r.height,0,.99999);
-  return Math.floor(y*24)*60+Math.floor(x*60);
+  return DAY0+Math.floor(y*24)*60+Math.floor(x*60);
 };
 const rangeOf=(m1,m2,fine=true)=>{
   const lo=Math.min(m1,m2),hi=Math.max(m1,m2);
@@ -1095,14 +1128,14 @@ function openPop(e,ctx){
   popIn.focus();popIn.select();
 }
 function popHead(){
-  const s=parseHM($('#popS').value),e=parseHM($('#popE').value),lay=$('#popL').value;
+  const [s,e]=pTimes('#popS','#popE'),lay=$('#popL').value;
   const t=$('#popTitle');t.className=lay;
   t.textContent=popCtx&&popCtx.edit?(lay==='plan'?'예정':'기록')+' 수정':(lay==='plan'?'예정':'기록')+' 추가';
   if(s!=null&&e!=null&&e>s)t.textContent+=` · ${fmtT(s)} – ${fmtT(e)}  (${fmtDur(e-s)})`;
 }
 function popTimeChanged(){
   popHead();
-  const s=parseHM($('#popS').value),e=parseHM($('#popE').value);
+  const [s,e]=pTimes('#popS','#popE');
   if(popCtx&&!popCtx.edit&&s!=null&&e!=null&&e>s){preview={layer:$('#popL').value,a:s,b:e,k:popCtx.k};renderBlocks()}
 }
 for(const id of ['#popS','#popE'])$(id).addEventListener('input',popTimeChanged);
@@ -1131,7 +1164,7 @@ function closePop(){
 function commitPop(){
   if(!popCtx)return;
   const t=popIn.value.trim(),k=popCtx.k;
-  const s=parseHM($('#popS').value),e=parseHM($('#popE').value);
+  const [s,e]=pTimes('#popS','#popE');
   if(s==null||e==null||e<=s){toast('시간을 확인해주세요 (예: 09:00 ~ 10:30)');return}
   const d=getDay(true);
   const oldKey=popCtx.layer==='plan'?'plans':'recs',key=$('#popL').value==='plan'?'plans':'recs';
@@ -2288,12 +2321,12 @@ function shift(n){
   setDay(keyOf(d),n);
 }
 function scrollToNow(){
-  const body=ttScroll.firstElementChild,h=new Date().getHours();
+  const body=ttScroll.firstElementChild,n=new Date();let nm=n.getHours()*60+n.getMinutes();if(nm<DAY0)nm+=1440;const h=(nm-DAY0)/60;
   ttScroll.scrollTop=Math.max(0,body.offsetHeight*(h/24)-ttScroll.clientHeight/3);
 }
 $('#prev').onclick=()=>shift(-1);
 $('#next').onclick=()=>shift(1);
-$('#today').onclick=()=>{today=keyOf(new Date());setDay(today,0)};
+$('#today').onclick=()=>{today=todayKey();setDay(today,0)};
 $('#datebox').onclick=()=>{const p=$('#datePick');try{p.showPicker()}catch(e){p.focus()}};
 $('#datePick').onchange=e=>{if(e.target.value)setDay(e.target.value,0)};
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
@@ -2345,9 +2378,9 @@ let dnId=null;
 const dlg=$('#doneDlg');
 function openDone(ev,id){
   const t=getDay(false).todos.find(x=>x.id===id);if(!t)return;
-  const now=new Date(),nm=now.getHours()*60+now.getMinutes(),dur=t.est||30;
+  const now=new Date();let nm=now.getHours()*60+now.getMinutes();if(nm<DAY0)nm+=1440;const dur=t.est||30;
   let st,en;
-  if(curKey===today){en=nm;st=Math.max(0,en-dur)}else{st=9*60;en=Math.min(1440,st+dur)}
+  if(curKey===today){en=nm;st=Math.max(DAY0,en-dur)}else{st=9*60;en=Math.min(DAY0+1440,st+dur)}
   dnId=id;
   $('#dnT').textContent=t.t;
   $('#dnK').innerHTML=subOpts(t.k||'etc');
@@ -2358,15 +2391,15 @@ function openDone(ev,id){
   dlg.style.top=clamp(ev.clientY/zm+14,8,innerHeight/zm-dlg.offsetHeight-8)+'px';
   $('#dnS').focus();$('#dnS').select();
 }
-function dnDur(){const a=parseHM($('#dnS').value),b=parseHM($('#dnE').value);$('#dnD').value=(a!=null&&b!=null&&b>a)?fmtEst(b-a):''}
+function dnDur(){const [a,b]=pTimes('#dnS','#dnE');$('#dnD').value=(a!=null&&b!=null&&b>a)?fmtEst(b-a):''}
 $('#dnS').oninput=dnDur;$('#dnE').oninput=dnDur;
-$('#dnD').onchange=()=>{const a=parseHM($('#dnS').value),m=parseEst($('#dnD').value);if(a!=null&&m){$('#dnE').value=fmtT(Math.min(1440,a+m))}dnDur()};
+$('#dnD').onchange=()=>{const a=parseStart($('#dnS').value),m=parseEst($('#dnD').value);if(a!=null&&m){$('#dnE').value=fmtT(Math.min(DAY0+1440,a+m))}dnDur()};
 function closeDone(){dlg.classList.add('hidden');dnId=null}
 $('#dnSkip').onclick=closeDone;
 $('#dnNo').onclick=()=>{const t=dnId&&getDay(false).todos.find(x=>x.id===dnId);if(t){t.d=false;save();renderTodos()}closeDone()};
 function saveDone(){
   const t=dnId&&getDay(false).todos.find(x=>x.id===dnId);if(!t){closeDone();return}
-  const a=parseHM($('#dnS').value),b=parseHM($('#dnE').value);
+  const [a,b]=pTimes('#dnS','#dnE');
   if(a==null||b==null||b<=a){toast('시간을 확인해주세요 (예: 09:00 ~ 10:30)');return}
   const d=getDay(true);
   if(t.rid)d.recs=d.recs.filter(x=>x.id!==t.rid);
@@ -2440,13 +2473,13 @@ function ttHtml(d,hpx){
   all.sort((p,q)=>(p.kind==='plan'?0:1)-(q.kind==='plan'?0:1));
   all.forEach(x=>{
     const sj=subj(x.k),col=sj.color,tx=lum(col)>.6?'#111':'#fff';let first=true;
-    seg(x.s,x.e).forEach(g=>{
+    seg(x.s-DAY0,x.e-DAY0).forEach(g=>{
       const st=`left:${g.s/60*100}%;width:${(g.e-g.s)/60*100}%;top:${g.h/24*100}%;height:${100/24}%;--c:${col}`;
       let lab='';if(first&&x.t){first=false;lab=`<span style="color:${x.kind==='rec'?tx:'#111'}">${esc(x.t)}</span>`}
       b+=`<div class="tb ${x.kind}" style="${st}">${lab}</div>`;
     });
   });
-  let hrs='';for(let h=0;h<24;h++)hrs+=`<div>${ampm(h)}</div>`;
+  let hrs='';for(let h=0;h<24;h++)hrs+=`<div>${ampm((h+5)%24)}</div>`;
   let mins='';for(let i=0;i<6;i++)mins+=`<span>:${pad(i*10)}</span>`;
   return `<div class="ttw"><div class="ttm"><i></i>${mins}</div><div class="tt" style="height:${hpx}px"><div class="tth">${hrs}</div><div class="ttg">${b}</div></div></div>`;
 }
@@ -2562,7 +2595,7 @@ tickClock();initView();initRn();initSound();applyBg();renderDd();setPanel(db.ui&
 requestAnimationFrame(scrollToNow);
 sizeCanvas();requestAnimationFrame(frame);
 setInterval(()=>{
-  const t=keyOf(new Date());
+  const t=todayKey();
   if(t!==today){const wasToday=curKey===today;today=t;if(wasToday)setDay(t,0);else{renderDate();updateGauge()}}
   updateNow();
 },20000);
