@@ -718,13 +718,20 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .tl span{background:#111;color:#fff;font-weight:700;padding:0 4px 1px;border-radius:2px;max-width:100%;word-break:keep-all;overflow-wrap:anywhere}
 .tl.ov{justify-content:flex-start}
 .tl.ov span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.pg .wbx{display:inline-block;flex:none;width:46px;height:15px;border:1.5px solid #111;border-radius:3px;background:#fff;margin-left:auto;vertical-align:middle}
+.pg .ach .wbx.big{width:52px;height:22px;margin-left:2px;vertical-align:-6px;border-width:2px}
+.pg .es+.wbx{margin-left:6px}
+.pg .ln .wbx{margin-left:auto}
+.pg .ln .es{margin-left:auto}
+.pg .ln .es+.wbx{margin-left:6px}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.7</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.8</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -2456,7 +2463,7 @@ function pgLines(arr,n,withP){
   const shown=a.length>n?n-1:a.length;
   for(let i=0;i<n;i++){
     const t=i<shown?a[i]:null;
-    if(t)h+=`<div class="ln">${cb(t.d)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:''}</div>`;
+    if(t)h+=`<div class="ln">${cb(t.d)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:(withP&&t.t?'<i class="wbx"></i>':'')}</div>`;
     else if(i===n-1&&a.length>n)h+=`<div class="ln mu">+${a.length-shown}개 더</div>`;
     else h+='<div class="ln"></div>';
   }
@@ -2512,11 +2519,11 @@ function memoHtml(d){
 function daySheet(k,land){
   const dt=parseKey(k),d=dayBy(k,false),mon=monOf(dt),wk=wkData(keyOf(mon),false),mo=moData(ymOf(dt.getFullYear(),dt.getMonth()),false);
   const td=d.todos||[],c=cntOf(td),pct=c.t?Math.round(c.d/c.t*100):0;
-  const head=pgHead('일간 플래너',`${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`,`${DN[dt.getDay()]}요일`,`${ddHtml(x=>ddiff(x)>=-1)}<span class="ach">달성 <b>${pct}%</b> (${c.d}/${c.t})</span>`);
+  const head=pgHead('일간 플래너',`${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`,`${DN[dt.getDay()]}요일`,`${ddHtml(x=>ddiff(x)>=-1)}<span class="ach">달성 <i class="wbx big"></i> %</span>`);
   const goalN=land?4:4,todoN=land?12:15;
   const goals=pgBox('🎯 이번 주 목표',pgLines(wk?wk.goals:[],goalN))+pgBox('📌 이달의 계획',pgLines(mo?mo.plans:[],goalN));
   const estT=td.reduce((a,t)=>a+(t.est||0),0);
-  const todos=pgBox('✅ 할 일'+(estT?` · 예상 합계 ${fmtDur(estT)}`:''),pgLines(td,todoN,true),'fl');
+  const todos=pgBox('✅ 할 일'+(estT?` · 예상 합계 ${fmtDur(estT)}`:'')+' <small style="font-weight:400;opacity:.8">(오른쪽 빈칸 = 걸린 시간)</small>',pgLines(td,todoN,true),'fl');
   const memo=pgBox('📝 메모',`<div class="memo">${memoHtml(d)}</div>`,'memob');
   const sum=pgBox('⏱ 과목별 시간 (ETC 포함)',sumHtml(d));
   const hpx=land?640:900;
