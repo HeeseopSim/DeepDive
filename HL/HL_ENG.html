@@ -735,6 +735,11 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .day .memob .bb{background:repeating-linear-gradient(to bottom,transparent 0 22px,#aaa 22px 23px);padding:0 8px;font-size:12px;line-height:23px;white-space:pre-wrap;word-break:break-word;overflow:hidden}
 .day.l .memob{flex:1}
 .day .memob .memo{min-height:100%}
+
+/* ver 4.11: memo fills the whole panel, no top/bottom gaps */
+#memoBox{flex:1;min-height:0}
+#memoIn{margin:0 10px !important;padding:0 18px !important;border-radius:10px;height:auto}
+#memoBox .memo-foot{padding:3px 20px 4px !important;font-size:12.5px}
 .chip{padding:6px 10px;font-size:13.5px}.tabs button{padding:7px 14px}.datebox{min-width:0}.top{gap:8px 10px}
 </style>
 </head>
@@ -742,7 +747,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ENG 4.10</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ENG 4.11</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">Day</button><button data-v="week">Week</button><button data-v="month">Month</button><button data-v="year">Year</button></div>
   </div>
   <div class="datenav">
