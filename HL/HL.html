@@ -725,13 +725,23 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .pg .ln .wbx{margin-left:auto}
 .pg .ln .es{margin-left:auto}
 .pg .ln .es+.wbx{margin-left:6px}
+
+/* ver 4.9: smaller timetable on the print sheet, long ruled memo, taller goal boxes */
+.day.p .c2{width:auto !important;flex:1 !important;min-width:0}
+.day.p .c1{flex:none;width:290px;display:flex;flex-direction:column;gap:8px}
+.day.l .c1{width:400px !important}
+.day .c1 .ttw{flex:none}
+.day .memob{flex:1;min-height:60px}
+.day .memob .bb{background:repeating-linear-gradient(to bottom,transparent 0 22px,#aaa 22px 23px);padding:0 8px;font-size:12px;line-height:23px;white-space:pre-wrap;word-break:break-word;overflow:hidden}
+.day.l .memob{flex:1}
+.day .memob .memo{min-height:100%}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.8</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 4.9</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -2518,18 +2528,17 @@ function memoHtml(d){
 }
 function daySheet(k,land){
   const dt=parseKey(k),d=dayBy(k,false),mon=monOf(dt),wk=wkData(keyOf(mon),false),mo=moData(ymOf(dt.getFullYear(),dt.getMonth()),false);
-  const td=d.todos||[],c=cntOf(td),pct=c.t?Math.round(c.d/c.t*100):0;
+  const td=d.todos||[];
   const head=pgHead('일간 플래너',`${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`,`${DN[dt.getDay()]}요일`,`${ddHtml(x=>ddiff(x)>=-1)}<span class="ach">달성 <i class="wbx big"></i> %</span>`);
-  const goalN=land?4:4,todoN=land?12:15;
+  const goalN=land?10:8,todoN=land?14:18;
   const goals=pgBox('🎯 이번 주 목표',pgLines(wk?wk.goals:[],goalN))+pgBox('📌 이달의 계획',pgLines(mo?mo.plans:[],goalN));
   const estT=td.reduce((a,t)=>a+(t.est||0),0);
   const todos=pgBox('✅ 할 일'+(estT?` · 예상 합계 ${fmtDur(estT)}`:'')+' <small style="font-weight:400;opacity:.8">(오른쪽 빈칸 = 걸린 시간)</small>',pgLines(td,todoN,true),'fl');
   const memo=pgBox('📝 메모',`<div class="memo">${memoHtml(d)}</div>`,'memob');
-  const sum=pgBox('⏱ 과목별 시간 (ETC 포함)',sumHtml(d));
-  const hpx=land?640:900;
+  const hpx=land?576:624;
   let body;
-  if(land)body=`<div class="pg-b day l"><div class="c1">${ttHtml(d,hpx,land?526:387)}</div><div class="c2"><div class="cc">${goals}${sum}</div><div class="cc">${todos}${memo}</div></div></div>`;
-  else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}${memo}${sum}</div><div class="c1">${ttHtml(d,hpx,land?526:387)}</div></div>`;
+  if(land)body=`<div class="pg-b day l"><div class="c1">${ttHtml(d,hpx,366)}</div><div class="c2"><div class="cc">${goals}</div><div class="cc">${todos}${memo}</div></div></div>`;
+  else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}</div><div class="c1">${ttHtml(d,hpx,256)}${memo}</div></div>`;
   return head+body;
 }
 function weekSheet(k,land){
