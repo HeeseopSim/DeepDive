@@ -2484,7 +2484,7 @@ document.addEventListener('keydown',e=>{if(e.key==='F11'){e.preventDefault();tog
 
 /* backup */
 $('#exp').onclick=()=>{
-  if(window.HLAndroid&&HLAndroid.shareText){HLAndroid.shareText(`HL-backup-${keyOf(new Date())}.json`,JSON.stringify(db,null,1));return}
+  if(window.HLAndroid&&HLAndroid.saveBackup){const ok=HLAndroid.saveBackup(`HL-backup-${keyOf(new Date())}.json`,JSON.stringify(db,null,1));toast(ok?'다운로드 폴더에 백업 파일을 저장했어요':'백업을 저장하지 못했어요');return}
   const blob=new Blob([JSON.stringify(db,null,1)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`HL-backup-${keyOf(new Date())}.json`;a.click();URL.revokeObjectURL(a.href);

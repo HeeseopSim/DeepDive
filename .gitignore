@@ -9,3 +9,4 @@ tools/globalTypes.d.luau
 
 # user-supplied BGM is installed locally, never committed
 HL/media/
+android/hl.p12
