@@ -939,7 +939,7 @@ html.android #datePick{inset:0;left:0;bottom:0;width:100%;height:100%;opacity:0;
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.3</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.4</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -1078,6 +1078,7 @@ html.android #datePick{inset:0;left:0;bottom:0;width:100%;height:100%;opacity:0;
     <select id="pvOri"><option value="p">세로</option><option value="l">가로</option></select>
     <select id="pvBase"><option value="cur">보고 있는 날짜 기준</option><option value="today">오늘 기준</option></select>
     <select id="pvCell" title="타임테이블 칸 크기 (형광펜으로 칠할 때)"><option value="0">칸 작게</option><option value="1" selected>칸 보통</option><option value="2">칸 크게</option></select>
+    <select id="pvTT" title="시간표에 기록한 블록을 그릴지"><option value="show">시간표 기록 표시</option><option value="blank">시간표 비우기</option></select>
     <select id="pvColor"><option value="color">컬러</option><option value="bw">흑백</option></select>
     <span id="pvInfo" class="muted" style="font-size:12.5px"></span><button class="chip" id="pvPrint">🖨 인쇄</button><button class="chip" id="pvClose">닫기</button></div>
   <div class="pv-body" id="pvBody"><div class="pv-page pg" id="pvPage"></div></div>
@@ -2647,7 +2648,7 @@ function pgLines(arr,n,withP,blank){
   const shown=a.length>n?n-1:a.length;
   for(let i=0;i<n;i++){
     const t=i<shown?a[i]:null;
-    if(t&&blank)h+=`<div class="ln">${cb(false)}<span>${esc(t.t)}</span></div>`;
+    if(t&&blank)h+=`<div class="ln">${cb(false)}${withP&&t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span>${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${withP?'<i class="wbx"></i>':''}</div>`;
     else if(t)h+=`<div class="ln">${cb(t.d,t.f)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:(withP&&t.t?'<i class="wbx"></i>':'')}</div>`;
     else if(i===n-1&&a.length>n)h+=`<div class="ln mu">…</div>`;
     else h+='<div class="ln"></div>';
@@ -2662,11 +2663,11 @@ function ddHtml(keys){
   const a=db.ddays.map(x=>({x,n:ddiff(x.date)})).filter(o=>keys?keys(o.x.date):o.n>=-1).sort((p,q)=>p.x.date<q.x.date?-1:1).slice(0,4);
   return a.map(o=>`<span class="dd"><b>${ddText(o.n)}</b> ${esc(o.x.t)}</span>`).join('');
 }
-function ttHtml(d,hpx,gw){
+function ttHtml(d,hpx,gw,blankTT){
   let b='',labs='';
   const rowH=hpx/24;
   const seg=(s,e)=>{const out=[];for(let m=s;m<e;){const h=Math.floor(m/60),en=Math.min(e,(h+1)*60);out.push({h,s:m-h*60,e:en-h*60});m=en}return out};
-  const all=[];(d.recs||[]).forEach(x=>all.push({...x,kind:'rec'}));
+  const all=[];if(!blankTT)(d.recs||[]).forEach(x=>all.push({...x,kind:'rec'}));
   all.sort((p,q)=>(p.kind==='plan'?0:1)-(q.kind==='plan'?0:1));
   all.forEach(x=>{
     const col=subj(x.k).color,sg=seg(x.s-DAY0,x.e-DAY0);
@@ -2713,15 +2714,15 @@ function daySheet(k,land){
   const td=d.todos||[];
   const head=pgHead('일간 플래너',`${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`,`${DN[dt.getDay()]}요일`,`${ddHtml(x=>ddiff(x)>=-1)}<span class="ach">달성 <i class="wbx big"></i> %</span>`);
   const goalN=land?10:8,todoN=land?14:18;
-  const goals=pgBox('🎯 이번 주 목표',pgLines(wk?wk.goals:[],goalN))+pgBox('📌 이달의 계획',pgLines(mo?mo.plans:[],goalN));
+  const goals=pgBox('🎯 이번 주 목표',pgLines(wk?wk.goals:[],goalN,false,true))+pgBox('📌 이달의 계획',pgLines(mo?mo.plans:[],goalN,false,true));
   const estT=td.reduce((a,t)=>a+(t.est||0),0);
-  const todos=pgBox('✅ 할 일'+(estT?` · 예상 합계 ${fmtDur(estT)}`:'')+' <small style="font-weight:400;opacity:.8">(오른쪽 빈칸 = 걸린 시간)</small>',pgLines(td,todoN,true),'fl');
+  const todos=pgBox('✅ 할 일 <small style="font-weight:400;opacity:.8">(오른쪽 빈칸 = 걸린 시간을 직접 적기)</small>',pgLines(td,todoN,true,true),'fl');
   const memo=pgBox('📝 메모',`<div class="memo">${memoHtml(d)}</div>`,'memob');
   const tz=ttSize(land),hpx=tz.rowPx*24;
   const info=$('#pvInfo');if(info)info.textContent=`칸 크기: 가로 ${tz.colMm.toFixed(1)}mm × 세로 ${tz.rowMm}mm`;
   let body;
-  if(land)body=`<div class="pg-b day l"><div class="c1" style="width:${tz.gw+34}px">${ttHtml(d,hpx,tz.gw)}</div><div class="c2"><div class="cc">${goals}</div><div class="cc">${todos}${memo}</div></div></div>`;
-  else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}</div><div class="c1" style="width:${tz.gw+34}px">${ttHtml(d,hpx,tz.gw)}${memo}</div></div>`;
+  if(land)body=`<div class="pg-b day l"><div class="c1" style="width:${tz.gw+34}px">${ttHtml(d,hpx,tz.gw,$('#pvTT')&&$('#pvTT').value==='blank')}</div><div class="c2"><div class="cc">${goals}</div><div class="cc">${todos}${memo}</div></div></div>`;
+  else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}</div><div class="c1" style="width:${tz.gw+34}px">${ttHtml(d,hpx,tz.gw,$('#pvTT')&&$('#pvTT').value==='blank')}${memo}</div></div>`;
   return head+body;
 }
 function weekSheet(k,land){
@@ -2807,7 +2808,7 @@ function closePrint(){pv.classList.add('hidden')}
 $('#prBtn').onclick=openPrint;
 $('#pvClose').onclick=closePrint;
 $('#pvPrint').onclick=()=>{renderPrint();window.print()};
-['#pvKind','#pvOri','#pvBase','#pvColor','#pvCell'].forEach(s=>$(s).onchange=renderPrint);
+['#pvKind','#pvOri','#pvBase','#pvColor','#pvCell','#pvTT'].forEach(s=>$(s).onchange=renderPrint);
 addEventListener('resize',()=>{if(!pv.classList.contains('hidden'))fitPrint()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!pv.classList.contains('hidden'))closePrint()});
 
