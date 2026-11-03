@@ -917,13 +917,29 @@ html.android #datePick{inset:0;left:0;bottom:0;width:100%;height:100%;opacity:0;
 .mo.l .mplan{width:auto}
 .mo.p .mplan .bb{columns:1}
 .mw span{display:block;line-height:1.3;word-break:keep-all}
+
+/* ver 5.3: hold = failed */
+.todo,.le li{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.todo input,.le li input{-webkit-user-select:text;user-select:text}
+.todo.holding::after,.le li.holding::after{content:"";position:absolute;left:0;bottom:0;height:4px;width:0;background:#ff2a3a;animation:holdbar 3s linear forwards;border-radius:2px}
+@keyframes holdbar{to{width:100%}}
+.le li{position:relative}
+.todo.fail,.le li.fail,.todo.fail:hover,.todo[class*=" c-"].fail{background:linear-gradient(90deg,#b30f1f,#e6283d) !important;border-left-color:#ff8a94 !important}
+.todo.fail .chk,.le li.fail .chk{background:#fff;border-color:#fff}
+.todo.fail .chk svg,.le li.fail .chk svg{display:none}
+.todo.fail .chk::after,.le li.fail .chk::after{content:"✕";color:#d0102a;font-weight:900;font-size:15px;line-height:1}
+.todo.fail .txt,.le li.fail .t{text-decoration:none;opacity:1;color:#fff}
+.todo.fail{opacity:1}
+.mo-d .it.fail{background:#c0172a;color:#fff;border-left-color:#ff8a94}
+.pg .cb.x{background:#fff;border-color:#c0172a}
+.pg .cb.x::after{content:"✕";position:absolute;left:0;top:-3px;width:100%;text-align:center;font-size:12px;font-weight:900;color:#c0172a;border:0;transform:none;line-height:1.3}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.2</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.3</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -1425,7 +1441,7 @@ function renderTodos(){
   }
   for(const t of todos){
     const li=document.createElement('li');
-    li.className='todo'+(t.c?' c-'+t.c:'')+(t.d?' done':'')+(sel===t.id?' sel':'')+(newTodo===t.id?' enter':'')+(lastTog===t.id?' tog':'');
+    li.className='todo'+(t.c?' c-'+t.c:'')+(t.d?' done':'')+(t.f?' fail':'')+(sel===t.id?' sel':'')+(newTodo===t.id?' enter':'')+(lastTog===t.id?' tog':'');
     li.dataset.id=t.id;
     if(t.c&&t.c[0]==='#')li.style.setProperty('--c',t.c);
     li.innerHTML=`<select class="tsub" style="--c:${subj(t.k||'etc').color}" title="과목">${subOpts(t.k||'etc')}</select><input class="est" placeholder="예상" maxlength="8" title="예상 시간 (예: 30 · 1:30 · 1h20)" value="${t.est?fmtEst(t.est):''}"><button class="chk" data-a="chk" title="완료">${CHECK}</button><div class="txt"></div><span class="prio${t.p?' has':''}">${t.p||''}</span>${t.act?`<span class="act" title="실제 ${fmtT(t.rs)} ~ ${fmtT(t.re)}">⏱${fmtEst(t.act)}</span>`:''}<div class="tools-r">${cpFavs().filter(Boolean).map(c=>`<button class="dot fav" data-a="fav" data-c="${c}" style="background:${c}" title="저장해 둔 색"></button>`).join('')}<button class="dot pal" data-a="pal" title="팔레트에서 고르기"></button><button class="dot none" data-a="col" data-c="" title="색 없음"></button><button class="del" data-a="del" title="삭제">×</button></div>`;
@@ -1485,6 +1501,7 @@ list.addEventListener('change',e=>{
 });
 list.addEventListener('keydown',e=>{if(e.target.classList&&e.target.classList.contains('est')){e.stopPropagation();if(e.key==='Enter')e.target.blur()}});
 list.addEventListener('click',e=>{
+  if(Date.now()-holdFired<700)return;
   const li=e.target.closest('.todo');if(!li)return;
   if(e.target.closest('input'))return;
   const id=li.dataset.id,d=getDay(true),t=d.todos.find(x=>x.id===id);if(!t)return;
@@ -1492,7 +1509,7 @@ list.addEventListener('click',e=>{
   if(a){
     const act=a.dataset.a;
     if(act==='chk'){
-      const was=t.d;t.d=!t.d;lastTog=id;
+      const was=t.d;t.d=!t.d;lastTog=id;if(t.d)t.f=false;
       if(was){
         if(t.rid){d.recs=d.recs.filter(x=>x.id!==t.rid);renderBlocks()}
         delete t.rid;delete t.act;delete t.rs;delete t.re;
@@ -1517,7 +1534,36 @@ function editTodoText(li){
   inp.addEventListener('blur',()=>fin(true));
 }
 list.addEventListener('dblclick',e=>{const txt=e.target.closest('.txt');if(txt)editTodoText(txt.closest('.todo'))});
-list.addEventListener('contextmenu',e=>{const li=e.target.closest('.todo');if(!li)return;e.preventDefault();editTodoText(li)});
+list.addEventListener('contextmenu',e=>{const li=e.target.closest('.todo');if(!li)return;e.preventDefault();if(lastPtr==='touch')return;editTodoText(li)});
+
+
+/* ===== hold an item for 3 seconds = failed (red + X) ===== */
+let holdFired=0,lastPtr='mouse';
+document.addEventListener('pointerdown',e=>{lastPtr=e.pointerType||'mouse'},true);
+function attachHold(root,sel,onHold){
+  let tm=null,sx=0,sy=0,el=null;
+  const clear=()=>{clearTimeout(tm);tm=null;if(el)el.classList.remove('holding');el=null};
+  root.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    const li=e.target.closest(sel);if(!li||e.target.closest('input,select,button,textarea,.tools-r,.est,.tsub'))return;
+    clear();el=li;sx=e.clientX;sy=e.clientY;li.classList.add('holding');
+    tm=setTimeout(()=>{const x=el;clear();holdFired=Date.now();if(navigator.vibrate)navigator.vibrate(40);onHold(x)},3000);
+  });
+  root.addEventListener('pointermove',e=>{if(tm&&Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy)>12)clear()});
+  for(const t of ['pointerup','pointercancel','pointerleave'])root.addEventListener(t,clear);
+  root.addEventListener('contextmenu',e=>{if(lastPtr==='touch'&&e.target.closest(sel))e.preventDefault()},true);
+}
+function markFail(it){
+  if(it.f){it.f=false;toast('실패 표시를 풀었어요')}
+  else{
+    it.f=true;it.d=false;toast('✕ 못했어요로 표시했어요');
+  }
+}
+attachHold(list,'.todo',li=>{
+  const d=getDay(true),t=d.todos.find(x=>x.id===li.dataset.id);if(!t)return;
+  if(t.d&&t.rid){d.recs=d.recs.filter(x=>x.id!==t.rid);delete t.rid;delete t.act;delete t.rs;delete t.re;renderBlocks()}
+  markFail(t);save();renderTodos();
+});
 
 /* keyboard: priority + day nav */
 document.addEventListener('keydown',e=>{
@@ -1687,7 +1733,8 @@ function updateGauge(){
   const todos=getDay(false).todos,total=todos.length,done=todos.filter(t=>t.d).length;
   const pct=total?Math.round(done/total*100):0;
   target=pct/100;
-  $('#gCount').textContent=total?`완료 ${done} / 전체 ${total}`:'';
+  const failN=todos.filter(t=>t.f).length;
+  $('#gCount').textContent=total?`완료 ${done} / 전체 ${total}${failN?` · 실패 ${failN}`:''}`:'';
   $('#gTitle').textContent=curKey===today?'오늘의 달성률':'이 날의 달성률';
   $('#gMsg').textContent=!total?'할 일을 추가해보세요':pct===0?'시작이 반이에요':pct<50?'좋은 시작이에요':pct<100?'거의 다 왔어요!':'모두 완료! 🎉';
   gauge.classList.toggle('full',total>0&&pct===100);
@@ -2160,9 +2207,10 @@ function listEditor(host,o){
   const ul=document.createElement('ul');ul.className='le';
   sortItems(o.get(false)).forEach(it=>{
     const li=document.createElement('li');
-    li.className=(it.c?'c-'+it.c:'')+(it.d?' done':'')+(newItemId===it.id?' enter':'');
+    li.dataset.id=it.id;
+    li.className=(it.c?'c-'+it.c:'')+(it.d?' done':'')+(it.f?' fail':'')+(newItemId===it.id?' enter':'');
     const chk=document.createElement('button');chk.className='chk sm';chk.innerHTML=CHECK;chk.title='완료';
-    chk.onclick=()=>{it.d=!it.d;save();o.change()};
+    chk.onclick=()=>{it.d=!it.d;if(it.d)it.f=false;save();o.change()};
     const t=document.createElement('span');t.className='t';t.textContent=it.t;
     const edit=()=>{
       if(t.querySelector('input'))return;
@@ -2173,12 +2221,13 @@ function listEditor(host,o){
       inp.onkeydown=ev=>{ev.stopPropagation();if(ev.key==='Enter')fin(true);else if(ev.key==='Escape')fin(false)};
       inp.onblur=()=>fin(true);
     };
-    t.ondblclick=edit;li.oncontextmenu=e=>{e.preventDefault();edit()};
+    t.ondblclick=edit;li.oncontextmenu=e=>{e.preventDefault();if(lastPtr!=='touch')edit()};
     const x=document.createElement('button');x.className='x';x.textContent='×';x.title='삭제';
     x.onclick=()=>{const a=o.get(true);a.splice(a.indexOf(it),1);save();o.change()};
     li.appendChild(chk);li.appendChild(t);li.appendChild(x);ul.appendChild(li);
   });
   host.appendChild(ul);
+  if(!host._hold){host._hold=1;attachHold(host,'.le li',li=>{const it=o.get(true).find(x=>x.id===li.dataset.id);if(it){markFail(it);save();o.change()}})}
   const f=document.createElement('form');f.className='le-add';f.autocomplete='off';
   const inp=document.createElement('input');inp.placeholder=o.ph||'+ 추가';inp.maxLength=60;inp.dataset.fk=o.fk;
   f.appendChild(inp);
@@ -2249,7 +2298,7 @@ function renderMonth(){
       const todos=dd?sortItems(dd.todos):[];
       todos.slice(0,3).forEach(t=>{
         const col=COLORMAP[t.c]||'rgba(255,255,255,.2)';
-        hh+=`<span class="it${t.d?' done':''}" style="border-left-color:${col}">${esc(t.t)}</span>`;
+        hh+=`<span class="it${t.d?' done':''}${t.f?' fail':''}" style="border-left-color:${col}">${esc(t.t)}</span>`;
       });
       if(todos.length>3)hh+=`<span class="more">+${todos.length-3}개 더</span>`;
       cell.innerHTML=hh;cell.onclick=()=>openDay(k);cell.oncontextmenu=e=>{e.preventDefault();openDd(e,k)};g.appendChild(cell);
@@ -2579,6 +2628,7 @@ function openStats(){
   h+=`<tr class="tot"><td>합계</td><td>${f(tot.rec)}</td><td></td><td>${f(tot.est)}</td><td>${f(tot.act)}</td></tr></table>`;
   const dn=(d.todos||[]).filter(t=>t.d&&t.est&&t.act),diff=dn.reduce((a,t)=>a+t.act-t.est,0);
   if(dn.length)h+=`<p class="stn">예상한 일 ${dn.length}개를 마쳤고, 예상보다 <b>${diff>0?fmtEst(diff)+' 더':diff<0?fmtEst(-diff)+' 덜':'딱 맞게'}</b> 걸렸어요.</p>`;
+  {const all=(d.todos||[]),ok=all.filter(t=>t.d).length,ng=all.filter(t=>t.f).length;if(all.length)h+=`<p class="stn">오늘 할 일 ${all.length}개 중 <b>성공 ${ok}</b> · <b>실패 ${ng}</b> · 아직 안 한 일 ${all.length-ok-ng}</p>`}
   h+='<p class="stn">ETC는 과목에 속하지 않는 일이에요. 할 일에서 과목을 ETC로 두면 여기에 모여요.</p>';
   const dt=parseKey(curKey);
   $('#stH').textContent=`📊 ${dt.getMonth()+1}월 ${dt.getDate()}일 통계`;
@@ -2590,7 +2640,7 @@ $('#statModal').addEventListener('mousedown',e=>{if(e.target.id==='statModal')$(
 
 /* ===== print page (A4, portrait / landscape): day / week / month / year ===== */
 const PG={p:[794,1123],l:[1123,794]};
-const cb=d=>`<i class="cb${d?' on':''}"></i>`;
+const cb=(d,f)=>`<i class="cb${d?' on':''}${f?' x':''}"></i>`;
 const DN=['일','월','화','수','목','금','토'];
 function pgLines(arr,n,withP,blank){
   const a=sortItems(arr||[]);let h='';
@@ -2598,7 +2648,7 @@ function pgLines(arr,n,withP,blank){
   for(let i=0;i<n;i++){
     const t=i<shown?a[i]:null;
     if(t&&blank)h+=`<div class="ln">${cb(false)}<span>${esc(t.t)}</span></div>`;
-    else if(t)h+=`<div class="ln">${cb(t.d)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:(withP&&t.t?'<i class="wbx"></i>':'')}</div>`;
+    else if(t)h+=`<div class="ln">${cb(t.d,t.f)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:(withP&&t.t?'<i class="wbx"></i>':'')}</div>`;
     else if(i===n-1&&a.length>n)h+=`<div class="ln mu">…</div>`;
     else h+='<div class="ln"></div>';
   }
