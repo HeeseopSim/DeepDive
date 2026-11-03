@@ -36,7 +36,7 @@ flats = [os.path.join(WORK, 'compiled', f) for f in os.listdir(os.path.join(WORK
 base = os.path.join(WORK, 'base.apk')
 run(AAPT2, 'link', '-o', base, '-I', FRAMEWORK, '--manifest', os.path.join(HERE, 'AndroidManifest.xml'),
     '-A', os.path.join(WORK, 'assets'), '--min-sdk-version', '29', '--target-sdk-version', '34',
-    '--version-code', '51', '--version-name', '5.1', *flats)
+    '--version-code', '52', '--version-name', '5.2', *flats)
 # ---- code
 src = os.path.join(HERE, 'src/com/heeseop/hl/MainActivity.java')
 run('javac', '--release', '8', '-cp', os.path.join(TOOLS, 'android34.jar'), '-d', os.path.join(WORK, 'classes'), src)

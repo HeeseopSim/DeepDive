@@ -903,13 +903,27 @@ html.android #datePick{inset:0;left:0;bottom:0;width:100%;height:100%;opacity:0;
   .p-head{flex-wrap:wrap;row-gap:4px}
   .legend{font-size:11px}
 }
+
+/* ver 5.2: week / month / year sheets are analog checklists */
+.pg .dl{flex:none;width:62px;font-size:11px;color:#333;font-weight:700;white-space:nowrap}
+.mo .mlow{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mo.p .mcal{flex:none;height:440px}
+.mo.p .mlow{flex:1;min-height:0}
+.mo.p .mlow .bx{min-height:0}
+.mo.p .mlist .bb{columns:1}
+.mo.l{flex-direction:row}
+.mo.l .mlow{display:flex;flex-direction:column;width:300px}
+.mo.l .mlow .bx{flex:1}
+.mo.l .mplan{width:auto}
+.mo.p .mplan .bb{columns:1}
+.mw span{display:block;line-height:1.3;word-break:keep-all}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.1</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.2</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -2578,13 +2592,14 @@ $('#statModal').addEventListener('mousedown',e=>{if(e.target.id==='statModal')$(
 const PG={p:[794,1123],l:[1123,794]};
 const cb=d=>`<i class="cb${d?' on':''}"></i>`;
 const DN=['일','월','화','수','목','금','토'];
-function pgLines(arr,n,withP){
+function pgLines(arr,n,withP,blank){
   const a=sortItems(arr||[]);let h='';
   const shown=a.length>n?n-1:a.length;
   for(let i=0;i<n;i++){
     const t=i<shown?a[i]:null;
-    if(t)h+=`<div class="ln">${cb(t.d)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:(withP&&t.t?'<i class="wbx"></i>':'')}</div>`;
-    else if(i===n-1&&a.length>n)h+=`<div class="ln mu">+${a.length-shown}개 더</div>`;
+    if(t&&blank)h+=`<div class="ln">${cb(false)}<span>${esc(t.t)}</span></div>`;
+    else if(t)h+=`<div class="ln">${cb(t.d)}${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span class="${t.d?'dn':''}">${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span>${t.est?`<small class="es">⏳${fmtEst(t.est)}</small>`:''}${t.act?`<small class="es">⏱${fmtEst(t.act)}</small>`:(withP&&t.t?'<i class="wbx"></i>':'')}</div>`;
+    else if(i===n-1&&a.length>n)h+=`<div class="ln mu">…</div>`;
     else h+='<div class="ln"></div>';
   }
   return h;
@@ -2665,11 +2680,11 @@ function weekSheet(k,land){
   const names=['월','화','수','목','금','토','일'];
   const days=[];
   for(let i=0;i<7;i++){
-    const dt=addDays(mon,i),dk=keyOf(dt),d=dayBy(dk,false),c=cntOf(d.todos||[]),rec=(d.recs||[]).reduce((a,x)=>a+x.e-x.s,0);
+    const dt=addDays(mon,i),dk=keyOf(dt),d=dayBy(dk,false);
     const dd=ddOn(dk).map(x=>`<div class="dd2">🔥 ${esc(x.t)}</div>`).join('');
-    days.push(`<div class="wd${i>=5?' we':''}"><div class="wdh"><b>${names[i]}</b> ${dt.getMonth()+1}/${dt.getDate()}<small>${c.t?c.d+'/'+c.t:''}${rec?' · ⏱'+fmtDur(rec):''}</small>${dd}</div><div class="wl">${pgLines(d.todos,land?15:8,true)}</div></div>`);
+    days.push(`<div class="wd${i>=5?' we':''}"><div class="wdh"><b>${names[i]}</b> ${dt.getMonth()+1}/${dt.getDate()}${dd}</div><div class="wl">${pgLines(d.todos,land?15:8,false,true)}</div></div>`);
   }
-  const top=`<div class="wtop">${pgBox('🎯 주간 목표',pgLines(wk?wk.goals:[],land?5:6))}${pgBox('📝 이번 주 할 일',pgLines(wk?wk.tasks:[],land?5:6))}</div>`;
+  const top=`<div class="wtop">${pgBox('🎯 주간 목표',pgLines(wk?wk.goals:[],land?5:6,false,true))}${pgBox('📝 이번 주 할 일',pgLines(wk?wk.tasks:[],land?5:6,false,true))}</div>`;
   return head+`<div class="pg-b wk ${land?'l':'p'}">${top}<div class="wdays">${days.join('')}</div></div>`;
 }
 function monthSheet(k,land){
@@ -2677,32 +2692,42 @@ function monthSheet(k,land){
   const weeks=Math.ceil((((first.getDay()+6)%7)+n)/7),mo=moData(ym,false);
   const head=pgHead('월간 계획표',`${y}년 ${m+1}월`,`${n}일`,ddHtml(x=>x.startsWith(ym)));
   let g='<div class="mh">주차</div>'+['월','화','수','목','금','토','일'].map((x,i)=>`<div class="mh${i>=5?' we':''}">${x}</div>`).join('');
-  const cap=land?3:4;
   for(let w=0;w<weeks;w++){
     const mn=addDays(start,w*7),wd=wkData(keyOf(mn),false);
-    const its=[];if(wd){wd.goals.forEach(x=>its.push({t:'🎯 '+x.t,d:x.d}));wd.tasks.forEach(x=>its.push({t:'· '+x.t,d:x.d}))}
-    g+=`<div class="mw"><b>${weekLabel(mn)}</b>${its.slice(0,6).map(x=>`<span class="${x.d?'dn':''}">${esc(x.t)}</span>`).join('')}${its.length>6?`<span class="mu">+${its.length-6}개 더</span>`:''}</div>`;
+    const its=[];if(wd){wd.goals.forEach(x=>its.push('🎯 '+x.t));wd.tasks.forEach(x=>its.push('· '+x.t))}
+    g+=`<div class="mw"><b>${weekLabel(mn)}</b>${its.slice(0,6).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`;
     for(let i=0;i<7;i++){
-      const dt=addDays(mn,i),dk=keyOf(dt),dd=db.days[dk],rec=dd?dd.recs.reduce((a,x)=>a+x.e-x.s,0):0;
-      let h=`<div class="md${dt.getMonth()!==m?' out':''}"><div class="mn"><b>${dt.getDate()}</b>${rec?`<small>⏱${fmtDur(rec)}</small>`:''}</div>`;
+      const dt=addDays(mn,i),dk=keyOf(dt);
+      let h=`<div class="md${dt.getMonth()!==m?' out':''}"><div class="mn"><b>${dt.getDate()}</b></div>`;
       ddOn(dk).forEach(x=>{h+=`<span class="it dd">🔥 ${esc(x.t)}</span>`});
-      const td=dd?sortItems(dd.todos):[];
-      td.slice(0,cap).forEach(t=>{h+=`<span class="it${t.d?' dn':''}">${esc(t.t)}</span>`});
-      if(td.length>cap)h+=`<span class="it mu">+${td.length-cap}</span>`;
       g+=h+'</div>';
     }
   }
-  const plans=pgBox('📌 이달의 계획',pgLines(mo?mo.plans:[],land?18:7),'mplan');
-  return head+`<div class="pg-b mo ${land?'l':'p'}"><div class="mcal" style="grid-template-rows:auto repeat(${weeks},1fr)">${g}</div>${plans}</div>`;
+  // the day-by-day task list, drawn as an empty checklist for ticking off by hand
+  const rows=[];
+  for(let i=1;i<=n;i++){
+    const dk=`${y}-${pad(m+1)}-${pad(i)}`,dd=db.days[dk];
+    if(dd&&dd.todos&&dd.todos.length)sortItems(dd.todos).forEach((t,j)=>rows.push({d:j===0?`${i}일(${DN[new Date(y,m,i).getDay()]})`:'',t:t.t}));
+  }
+  const cap=land?22:26;
+  let list='';
+  for(let i=0;i<cap;i++){
+    const r=rows[i];
+    if(r&&!(i===cap-1&&rows.length>cap))list+=`<div class="ln">${r.d?`<b class="dl">${r.d}</b>`:'<b class="dl"></b>'}${cb(false)}<span>${esc(r.t)}</span></div>`;
+    else if(i===cap-1&&rows.length>cap)list+='<div class="ln mu">…</div>';
+    else list+='<div class="ln"><b class="dl"></b></div>';
+  }
+  const low=`<div class="mlow">${pgBox('📌 이달의 계획',pgLines(mo?mo.plans:[],land?10:12,false,true),'mplan')}${pgBox('✅ 날짜별 할 일',list,'mlist')}</div>`;
+  return head+`<div class="pg-b mo ${land?'l':'p'}"><div class="mcal" style="grid-template-rows:auto repeat(${weeks},1fr)">${g}</div>${low}</div>`;
 }
 function yearSheet(k,land){
   const y=parseKey(k).getFullYear();
   const head=pgHead('연간 계획표',`${y}년`,'12개월 계획',ddHtml(x=>x.startsWith(String(y))));
   let cards='';
   for(let m=0;m<12;m++){
-    const ym=ymOf(y,m),mo=moData(ym,false),c=cntOf(mo?mo.plans:[]);
+    const ym=ymOf(y,m),mo=moData(ym,false);
     const dds=db.ddays.filter(x=>x.date.startsWith(ym)).map(x=>`<div class="dd2">🔥 ${esc(x.t)} (${x.date.slice(8)}일)</div>`).join('');
-    cards+=`<div class="yc"><div class="ych"><b>${m+1}월</b><small>${c.t?c.d+'/'+c.t:''}</small></div>${dds}${pgLines(mo?mo.plans:[],land?(dds?6:7):(dds?7:8))}</div>`;
+    cards+=`<div class="yc"><div class="ych"><b>${m+1}월</b></div>${dds}${pgLines(mo?mo.plans:[],land?(dds?6:7):(dds?7:8),false,true)}</div>`;
   }
   return head+`<div class="pg-b yr ${land?'l':'p'}">${cards}</div>`;
 }
