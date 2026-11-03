@@ -942,13 +942,17 @@ html.android #datePick{inset:0;left:0;bottom:0;width:100%;height:100%;opacity:0;
 .pg .ln .bl,.pg .ln .sd{margin-top:3px}
 .wk.l .ln{min-height:26px}
 .wk .ln{min-height:20px}
+
+/* ver 5.8: timetable labels use a heavy shadow instead of a black background */
+.cl span{background:none !important;padding:0 !important;border-radius:0 !important;color:#fff;text-shadow:0 0 2px #000,0 0 3px #000,0 0 5px #000,1px 1px 2px #000,-1px -1px 2px #000,1px -1px 2px #000,-1px 1px 2px #000,0 2px 5px rgba(0,0,0,.95)}
+.pg .tl span{background:none !important;padding:0 !important;border-radius:0 !important;color:#fff;text-shadow:0 0 2px #000,0 0 3px #000,0 0 5px #000,1px 1px 1px #000,-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000,0 1px 4px rgba(0,0,0,.9) !important}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.7</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.8</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
