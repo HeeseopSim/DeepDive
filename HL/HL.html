@@ -956,13 +956,17 @@ html.android #datePick{inset:0;left:0;bottom:0;width:100%;height:100%;opacity:0;
 .txt,.le .t,.todo .txt{-webkit-text-stroke:0 !important;text-shadow:none !important;paint-order:normal}
 .rn i,.tabs button,.p-head h2{-webkit-text-stroke:0 !important}
 .ic{display:grid;place-items:center}
+
+/* ver 5.11: label text follows the block colour (black on light blocks, white on dark ones) */
+.cl span{color:var(--tx,#fff) !important}
+.pg .tl span{color:inherit !important}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.10</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 5.11</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -1220,7 +1224,7 @@ function addBlock(b0,layerName,plans0,anim,extra){
   const b={...b0,s:b0.s-DAY0,e:b0.e-DAY0};
   const plans=plans0?plans0.map(x=>({...x,s:x.s-DAY0,e:x.e-DAY0})):plans0;
   const rowH=100/24, sj=subj(b.k);
-  const tx=lum(sj.color)>.6?'#1a1033':'#fff';
+  const tx=lum(sj.color)>.6?'#000':'#fff';
   const wrap=document.createElement('div');wrap.className='blk '+layerName;layer.appendChild(wrap);
   const mk=(cls,r,cs,ce,parent)=>{
     const el=document.createElement('div');
@@ -2672,7 +2676,7 @@ function pgLines(arr,n,withP,blank){
   const shown=a.length>n?n-1:a.length;
   for(let i=0;i<n;i++){
     const t=i<shown?a[i]:null;
-    if(t)h+=`<div class="ln"><b class="bl">•</b>${t.k?`<i class="sd" style="background:${subj(t.k).color};margin:0"></i>`:''}<span>${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span></div>`;
+    if(t)h+=`<div class="ln"><b class="bl">•</b><span>${withP&&t.p?`<em>${t.p}</em>`:''}${esc(t.t)}</span></div>`;
     else if(i===n-1&&a.length>n)h+=`<div class="ln mu">…</div>`;
     else h+='<div class="ln"></div>';
   }
@@ -2703,7 +2707,7 @@ function ttHtml(d,hpx,gw){
     const W=(best.e-best.s)/60*gw,n=[...x.t].length;
     let f=11,fit=false,lines=1;
     for(;f>=7;f-=.5){const per=Math.max(1,Math.floor((W-10)/(f*.98)));lines=Math.ceil(n/per);if(lines*f*1.25+2<=rowH){fit=true;break}}
-    const top=`top:${best.h/24*100}%;height:${100/24}%`;
+    const top=`top:${best.h/24*100}%;height:${100/24}%;color:${lum(col)>.6?'#000':'#fff'}`;
     if(fit)labs+=`<div class="tl" style="left:${best.s/60*100}%;width:${(best.e-best.s)/60*100}%;${top};font-size:${f}px"><span>${esc(x.t)}</span></div>`;
     else labs+=`<div class="tl ov" style="left:${best.s/60*100}%;width:${(60-best.s)/60*100}%;${top};font-size:9px"><span>${esc(x.t)}</span></div>`;
   });
