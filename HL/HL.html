@@ -1223,7 +1223,7 @@ html,body{max-width:100vw}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 6.2</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 6.3</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -1381,6 +1381,9 @@ html,body{max-width:100vw}
 #addForm+*{margin-top:4px}
 .todo{margin:0 0 4px}
 main{gap:24px}
+
+/* ver 6.3: timetable blocks - no dark inner shading, thin black outline on exposed edges only */
+.blk .glow,.blk .glow.plan{--k:#111;box-shadow:inset 1.5px 0 0 color-mix(in srgb,var(--k) calc(var(--l,0)*100%),transparent),inset -1.5px 0 0 color-mix(in srgb,var(--k) calc(var(--r,0)*100%),transparent),inset 0 1.5px 0 color-mix(in srgb,var(--k) calc(var(--t,0)*100%),transparent),inset 0 -1.5px 0 color-mix(in srgb,var(--k) calc(var(--bt,0)*100%),transparent)}
 </style>
   <div class="pv-bar"><b>🖨 프린트 (A4)</b>
     <select id="pvKind"><option value="day">일간</option><option value="week">주간</option><option value="month">월간</option><option value="year">연간</option></select>
