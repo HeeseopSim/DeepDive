@@ -1223,7 +1223,7 @@ html,body{max-width:100vw}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 6.1</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 6.2</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -1356,7 +1356,32 @@ html,body{max-width:100vw}
   <div class="sp-row"><span>🖱️ 효과음</span><input type="range" id="vSfx" min="0" max="100" step="1"><b id="vSfxN">0</b></div>
 </div>
 <div id="printView" class="hidden">
-  <style id="pageStyle">@page{size:A4 portrait;margin:0}</style>
+  <style id="pageStyle">@page{size:A4 portrait;margin:0}
+/* ver 6.2: subject colour marks - no shadow, thin outline */
+.sub i{width:13px;height:13px;border:1.5px solid var(--ink);box-shadow:none}
+.sub,.sub.on{box-shadow:none}
+.sub.on{border-width:2px;padding:4px 12px 4px 9px}
+.sw,.sw.on{box-shadow:none;border:1.5px solid var(--ink)}
+.sw.on{outline:2px solid var(--ink);outline-offset:2px;transform:none}
+.stt .sd{width:12px;height:12px;border:1.5px solid var(--ink);box-shadow:none}
+.stt td.bc i{border:1.5px solid var(--ink)}
+.tsub,#addSub{box-shadow:none;text-shadow:none}
+
+/* ver 6.2: spacing pass */
+#pop{width:min(420px,92vw);padding:22px 24px}
+#popTitle{font-size:14px;margin-bottom:14px;white-space:nowrap}
+.popsubs{gap:8px;margin-bottom:14px}
+.popsubs .sub{padding:4px 11px 4px 8px;font-size:12.5px}
+#pop input[type=text],#popIn{margin-bottom:12px}
+.subbar{padding:16px 24px 14px;gap:14px 12px}
+.subchips{gap:10px 10px}
+.sub{padding:6px 14px 6px 10px;font-size:13px}
+.top{padding:20px 32px 14px;gap:14px 20px}
+#addForm{padding:20px 24px 4px;gap:12px}
+#addForm+*{margin-top:4px}
+.todo{margin:0 0 4px}
+main{gap:24px}
+</style>
   <div class="pv-bar"><b>🖨 프린트 (A4)</b>
     <select id="pvKind"><option value="day">일간</option><option value="week">주간</option><option value="month">월간</option><option value="year">연간</option></select>
     <select id="pvOri"><option value="p">세로</option><option value="l">가로</option></select>
