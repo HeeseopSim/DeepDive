@@ -1,12 +1,22 @@
 """QR 대기표 (단일 파일).
 설치 필요 없음 (파이썬만 있으면 됨, QR 생성기 내장)
-실행: python queue_app.py   (환경변수: PORT, PUBLIC_URL=http://<PC의 IP>:3000)
-관리 화면: /   손님 등록: /join   K키 = 맨 위 사람 삭제
+실행: python queue_app.py
+ - 시작하면 인터넷 주소(무료 Cloudflare 터널)를 자동으로 만들고 그 주소로 QR 생성
+   → 손님은 같은 Wi-Fi가 아니어도 폰 카메라로 QR만 찍으면 등록됨
+ - 환경변수: PORT, PUBLIC_URL(직접 주소 지정), NO_TUNNEL=1(터널 끄기)
+관리 화면(PC에서만): /   손님 등록: /join   K키 = 맨 위 사람 삭제
 """
+import atexit
 import json
 import os
+import re
+import secrets
+import shutil
+import subprocess
+import sys
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -107,13 +117,13 @@ function form(){
     const r=await fetch('/api/join',{method:'POST',body:JSON.stringify({name:name.value,size:size.value})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error;return}
-    myId=d.id;localStorage.setItem('queueId',myId);track();
+    myId=d.id;localStorage.setItem('queueId',myId);localStorage.setItem('queueToken',d.token);track();
   };
 }
 async function track(){
   const s=await (await fetch('/api/status?id='+myId)).json();
   if(!s.waiting){
-    localStorage.removeItem('queueId');
+    localStorage.removeItem('queueId');localStorage.removeItem('queueToken');
     app.innerHTML=`<h1>대기 종료</h1><p class="sub">대기표가 완료/취소되었습니다.</p><button class="go" id="again">다시 등록</button>`;
     again.onclick=()=>{myId=null;form()};return;
   }
@@ -123,7 +133,7 @@ async function track(){
   ${first?'<div class="now">🔔 곧 입장 차례입니다!</div>':`<div class="now" style="background:#2563eb">내 앞 ${s.teamsAhead}팀 (${s.peopleAhead}명)</div>`}
   <button class="cancel" id="c">대기 취소</button>`;
   c.onclick=async()=>{if(!confirm('대기를 취소할까요?'))return;
-    await fetch('/api/remove',{method:'POST',body:JSON.stringify({id:myId})});track()};
+    await fetch('/api/remove',{method:'POST',body:JSON.stringify({id:myId,token:localStorage.getItem('queueToken')})});track()};
   clearTimeout(window.t);window.t=setTimeout(track,3000);
 }
 myId?track():form();
@@ -307,6 +317,11 @@ def make_qr_svg(text, scale=10, border=4):
             f'<rect width="{s}" height="{s}" fill="#fff"/><g fill="#000">{rects}</g></svg>')
 
 
+def _public(x):
+    """토큰(취소 권한)은 본인에게만 → 응답에서 제외."""
+    return {k: v for k, v in x.items() if k != "token"}
+
+
 class WaitingQueue:
     def __init__(self, file=None):
         self.file = file
@@ -347,7 +362,8 @@ class WaitingQueue:
             raise ValueError("인원은 1~99명이어야 합니다")
         with self.lock:
             item = {"id": self.next_number, "name": name, "size": size,
-                    "createdAt": int(time.time() * 1000)}
+                    "createdAt": int(time.time() * 1000),
+                    "token": secrets.token_hex(8)}
             self.next_number += 1
             self.items.append(item)
             self._save()
@@ -362,10 +378,12 @@ class WaitingQueue:
             self._save()
             return done
 
-    def remove(self, id):
+    def remove(self, id, token=None, admin=False):
         with self.lock:
             for i, x in enumerate(self.items):
                 if x["id"] == id:
+                    if not admin and (not token or token != x.get("token")):
+                        return False
                     del self.items[i]
                     self._save()
                     return True
@@ -377,12 +395,12 @@ class WaitingQueue:
                 if x["id"] == id:
                     return {"waiting": True, "position": i + 1, "teamsAhead": i,
                             "peopleAhead": sum(y["size"] for y in self.items[:i]),
-                            "item": x, "lastCalled": self.last_called}
+                            "item": _public(x), "lastCalled": self.last_called}
             return {"waiting": False, "lastCalled": self.last_called}
 
     def snapshot(self):
         with self.lock:
-            return {"items": list(self.items),
+            return {"items": [_public(x) for x in self.items],
                     "totalPeople": sum(x["size"] for x in self.items),
                     "lastCalled": self.last_called}
 
@@ -412,12 +430,27 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return {}
 
+    def _is_local(self):
+        """PC 자신에서 온 요청만 True (터널/다른 기기 경유는 False)."""
+        if self.client_address[0] not in ("127.0.0.1", "::1"):
+            return False
+        return not any(self.headers.get(h) for h in
+                       ("Cf-Connecting-Ip", "X-Forwarded-For", "Forwarded", "X-Real-Ip"))
+
     def _base(self):
-        return PUBLIC_URL or f"http://{self.headers.get('Host')}"
+        if PUBLIC_URL:
+            return PUBLIC_URL.rstrip("/")
+        proto = self.headers.get("X-Forwarded-Proto") or "http"
+        return f"{proto}://{self.headers.get('Host')}"
+
+    def _deny(self):
+        self._send(403, {"error": "관리 기능은 서버 PC에서만 사용할 수 있습니다"})
 
     def do_GET(self):
         u = urlparse(self.path)
         p = u.path
+        if p in ("/", "/admin", "/api/queue", "/api/info", "/qr.svg") and not self._is_local():
+            return self._deny()
         if p == "/api/queue":
             return self._send(200, queue.snapshot())
         if p == "/api/status":
@@ -437,6 +470,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         p = urlparse(self.path).path
+        if p == "/api/complete" and not self._is_local():
+            return self._deny()
         if p == "/api/join":
             b = self._body()
             try:
@@ -446,14 +481,75 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/complete":
             return self._send(200, {"done": queue.complete()})
         if p == "/api/remove":
+            b = self._body()
             try:
-                id = int(self._body().get("id"))
+                id = int(b.get("id"))
             except (TypeError, ValueError):
                 id = 0
-            return self._send(200, {"ok": queue.remove(id)})
+            return self._send(200, {"ok": queue.remove(
+                id, token=b.get("token"), admin=self._is_local())})
         self._send(404, {"error": "not found"})
 
 
+def _find_cloudflared():
+    p = os.environ.get("CLOUDFLARED_PATH")
+    if p and os.path.exists(p):
+        return p
+    local = os.path.join(HERE, "cloudflared.exe" if os.name == "nt" else "cloudflared")
+    return shutil.which("cloudflared") or (local if os.path.exists(local) else None)
+
+
+def _download_cloudflared():
+    """Windows 전용: 공식 GitHub 릴리스에서 cloudflared.exe 내려받기 (사용자 동의 후)."""
+    url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+    dest = os.path.join(HERE, "cloudflared.exe")
+    print("내려받는 중... (약 30MB)")
+    urllib.request.urlretrieve(url, dest)
+    return dest
+
+
+def start_tunnel(port):
+    """cloudflared 터널을 켜고 인터넷 주소를 PUBLIC_URL로 설정."""
+    global PUBLIC_URL
+    if PUBLIC_URL or os.environ.get("NO_TUNNEL"):
+        return
+    exe = _find_cloudflared()
+    if not exe:
+        if os.name != "nt" or not sys.stdin.isatty():
+            print("[터널 없음] cloudflared를 설치하면 같은 Wi-Fi가 아니어도 QR로 접속할 수 있습니다.")
+            return
+        ans = input("인터넷용 주소를 만들려면 cloudflared(무료, Cloudflare 공식)가 필요합니다.\n"
+                    "자동으로 내려받을까요? (y/n): ").strip().lower()
+        if ans != "y":
+            print("터널 없이 실행합니다 (같은 Wi-Fi에서만 접속 가능).")
+            return
+        try:
+            exe = _download_cloudflared()
+        except Exception as e:  # noqa: BLE001
+            print("내려받기 실패:", e)
+            return
+    try:
+        proc = subprocess.Popen([exe, "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                encoding="utf-8", errors="replace")
+    except OSError as e:
+        print("터널 실행 실패:", e)
+        return
+    atexit.register(proc.terminate)
+
+    def watch():
+        global PUBLIC_URL
+        for line in proc.stdout:
+            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
+            if m and not PUBLIC_URL:
+                PUBLIC_URL = m.group(0)
+                print(f"\n인터넷 주소 준비 완료: {PUBLIC_URL}")
+                print("관리 화면을 새로고침하면 이 주소로 된 QR이 나옵니다.")
+    threading.Thread(target=watch, daemon=True).start()
+    print("인터넷 주소 만드는 중... (보통 5~10초)")
+
+
 if __name__ == "__main__":
-    print(f"대기표 서버 실행: http://localhost:{PORT}  (관리 화면 /, 손님 등록 /join)")
+    print(f"대기표 서버 실행: http://localhost:{PORT}  (관리 화면은 이 PC에서만)")
+    start_tunnel(PORT)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
