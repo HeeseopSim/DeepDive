@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "WaitingQueue"
-include(":app")
+include(":app", ":board")
