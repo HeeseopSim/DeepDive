@@ -6,3 +6,5 @@ tools/globalTypes.d.luau
 *.rbxl.lock
 *.rbxlx.lock
 .DS_Store
+waiting-queue/node_modules/
+waiting-queue/data.json
