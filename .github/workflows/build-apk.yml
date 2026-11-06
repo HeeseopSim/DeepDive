@@ -8,6 +8,9 @@ on:
       - "waiting-queue/android/**"
       - ".github/workflows/build-apk.yml"
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -27,3 +30,13 @@ jobs:
         with:
           name: qr-waiting-queue-apk
           path: waiting-queue/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Commit APK to branch (waiting-queue/dist)
+        run: |
+          mkdir -p waiting-queue/dist
+          cp waiting-queue/android/app/build/outputs/apk/debug/app-debug.apk waiting-queue/dist/QR-waiting-queue.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add waiting-queue/dist/QR-waiting-queue.apk
+          git commit -m "Add built APK [skip ci]" || echo "no change"
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"
