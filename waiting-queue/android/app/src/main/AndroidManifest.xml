@@ -4,9 +4,12 @@
 
     <application
         android:allowBackup="false"
-        android:label="QR 대기표"
+        android:label="QR 대기 등록"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
