@@ -5,6 +5,9 @@ import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.webkit.ConsoleMessage
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -32,6 +35,13 @@ class MainActivity : Activity() {
     private lateinit var setup: LinearLayout
     private lateinit var addr: EditText
     private lateinit var msg: TextView
+    private lateinit var loading: TextView
+    private lateinit var debug: TextView
+    private val handler = Handler(Looper.getMainLooper())
+    private var loaded = false
+    private val timeout = Runnable {
+        if (!loaded) showSetup("서버가 응답하지 않습니다. 서버 주소와 Wi-Fi(같은 네트워크)를 확인해 주세요.")
+    }
     private val prefs by lazy { getSharedPreferences("cfg", Context.MODE_PRIVATE) }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -64,22 +74,49 @@ class MainActivity : Activity() {
 
         val frame = FrameLayout(this)
         root.addView(frame, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        debug = TextView(this).apply {
+            setTextColor(Color.parseColor("#fca5a5"))
+            textSize = 12f
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            setTextIsSelectable(true)
+        }
+        root.addView(debug, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         // 등록 화면 (WebView)
         web = WebView(this).apply {
+            setBackgroundColor(Color.parseColor("#0f172a"))
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            webChromeClient = WebChromeClient()  // confirm/alert 대화상자 표시
+            webChromeClient = object : WebChromeClient() {  // confirm/alert 표시 + JS 오류 노출
+                override fun onConsoleMessage(cm: ConsoleMessage): Boolean {
+                    if (cm.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                        debug.text = "JS 오류: ${cm.message()} (줄 ${cm.lineNumber()})"
+                    }
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                     if (request.isForMainFrame) {
                         showSetup("서버에 연결하지 못했습니다. 주소와 Wi-Fi를 확인해 주세요. (${error.description})")
                     }
                 }
+                override fun onPageFinished(view: WebView, url: String) {
+                    loaded = true
+                    handler.removeCallbacks(timeout)
+                    loading.visibility = View.GONE
+                }
             }
             visibility = View.GONE
         }
         frame.addView(web, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        loading = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        frame.addView(loading, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
         // 서버 연결 화면
         setup = LinearLayout(this).apply {
@@ -123,6 +160,8 @@ class MainActivity : Activity() {
     }
 
     private fun showSetup(message: String?) {
+        handler.removeCallbacks(timeout)
+        loading.visibility = View.GONE
         web.visibility = View.GONE
         setup.visibility = View.VISIBLE
         addr.setText(prefs.getString("server", "")?.removePrefix("http://") ?: "")
@@ -132,8 +171,14 @@ class MainActivity : Activity() {
     private fun connect(base: String) {
         prefs.edit().putString("server", base).apply()
         setup.visibility = View.GONE
+        debug.text = ""
+        loaded = false
+        loading.text = "서버에 연결 중…\n$base"
+        loading.visibility = View.VISIBLE
         web.visibility = View.VISIBLE
         web.loadUrl("$base/join")
+        handler.removeCallbacks(timeout)
+        handler.postDelayed(timeout, 12000)
     }
 
     /** "192.168.0.10:3000", "http://.../join" 등을 "http://host:port" 로 정리. */
