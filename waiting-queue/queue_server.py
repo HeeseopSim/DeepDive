@@ -3,7 +3,7 @@
  - 브라우저가 자동으로 열리고, 시작하면 인터넷 주소(무료 Cloudflare 터널)를 만들어 QR에 넣음
    → 손님은 같은 Wi-Fi가 아니어도 폰 카메라로 QR을 찍으면 대기 등록
  - 환경변수: PORT(기본 3000), PUBLIC_URL(주소 직접 지정), NO_TUNNEL=1, NO_BROWSER=1
-관리 화면(PC에서만): /   손님 등록: /join   K키 = 맨 위 사람 삭제
+관리 화면(PC에서만): /   대기표 화면(TV용): /board   손님 등록: /join   K키 = 맨 위 사람 삭제
 """
 import atexit
 import json
@@ -23,7 +23,7 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", 3000))
 PUBLIC_URL = os.environ.get("PUBLIC_URL")
-BUILD_ID = "socket-v1"
+BUILD_ID = "socket-v2"
 TUNNEL_PENDING = False
 
 ADMIN_HTML = r'''<!doctype html>
@@ -52,6 +52,7 @@ kbd{background:#334155;border-radius:6px;padding:2px 8px;font-weight:700}
 </style></head><body><div class="wrap">
 <div class="panel">
   <h2>대기 현황</h2><div class="stat" id="stat"></div>
+  <a href="/board" target="_blank" style="display:inline-block;margin-bottom:12px;color:#60a5fa;font-weight:700">📺 대기표 화면 열기 (TV/모니터용)</a>
   <div id="now"></div>
   <button class="done" id="done">✔ 완료 — 맨 위 삭제 (<kbd>K</kbd>)</button>
   <div id="list"></div>
@@ -95,6 +96,66 @@ async function refreshQR(){
 }
 refreshQR();setInterval(refreshQR,3000);
 load();setInterval(load,2000);
+</script></body></html>
+'''
+
+BOARD_HTML = r'''<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>대기표 화면</title>
+<style>
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:system-ui,"Malgun Gothic",sans-serif;background:#0b1220;color:#e2e8f0;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 36px;background:#111b30}
+header h1{margin:0;font-size:clamp(22px,3vw,40px)}#clock{font-size:clamp(18px,2.4vw,32px);color:#94a3b8}
+main{flex:1;display:grid;grid-template-columns:1.6fr 1fr;gap:28px;padding:28px 36px;min-height:0}
+.left{display:flex;flex-direction:column;gap:24px;min-height:0}
+.now{background:#16a34a;border-radius:28px;padding:2.2vh 40px;text-align:center}
+.now .lab{font-size:clamp(18px,3.6vh,36px);opacity:.9}
+.now .num{font-size:clamp(64px,19vh,230px);font-weight:900;line-height:1.05}
+.now .who{font-size:clamp(22px,5vh,56px);font-weight:700}
+.now.empty{background:#1e293b;color:#64748b}.now.empty .num{font-size:clamp(40px,6vw,90px);padding:40px 0}
+.next{background:#111b30;border-radius:24px;padding:22px 30px;flex:1;min-height:0;overflow:hidden}
+.next h2{margin:0 0 1vh;font-size:clamp(18px,3.4vh,34px);color:#94a3b8}
+.row{display:flex;gap:24px;align-items:center;padding:.8vh 0;border-bottom:1px solid #1e293b;font-size:clamp(20px,4.4vh,44px)}
+.row .no{width:2.6em;font-weight:800;color:#60a5fa}.row .nm{flex:1}.row .sz{color:#94a3b8}
+.more{color:#64748b;margin-top:10px;font-size:clamp(16px,2vw,26px)}
+.right{background:#111b30;border-radius:24px;padding:28px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+.right h2{margin:0;font-size:clamp(22px,2.8vw,40px)}
+.qr{background:#fff;border-radius:18px;padding:12px;width:min(100%,420px)}.qr svg{width:100%;height:auto;display:block}
+.cnt{font-size:clamp(20px,2.6vw,36px);color:#cbd5e1}.hint{font-size:14px;color:#64748b}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>🏥 대기 현황</h1><div id="clock"></div></header>
+<main>
+  <div class="left"><div id="now"></div><div class="next"><h2>다음 순서</h2><div id="list"></div></div></div>
+  <div class="right"><h2>📱 QR을 찍어 대기 등록</h2><div class="qr" id="qrbox"></div>
+    <div class="cnt" id="cnt"></div><div class="hint">K 키: 다음 손님 호출 · F 키: 전체화면</div></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mask=n=>{n=String(n);const a=[...n];return a.length<=1?n:a.length===2?a[0]+'*':a[0]+'*'.repeat(a.length-2)+a[a.length-1]};
+function tick(){const d=new Date();$('clock').textContent=d.toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'})+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
+async function load(){
+  const d=await (await fetch('/api/queue')).json();
+  const [top,...rest]=d.items;
+  $('now').innerHTML=top?`<div class="now"><div class="lab">현재 호출</div><div class="num">${top.id}번</div><div class="who">${esc(mask(top.name))} 님 · ${top.size}명</div></div>`
+    :'<div class="now empty"><div class="num">대기 없음</div></div>';
+  const N=innerHeight<820?3:4;const show=rest.slice(0,N);
+  $('list').innerHTML=show.map(x=>`<div class="row"><span class="no">${x.id}번</span><span class="nm">${esc(mask(x.name))}</span><span class="sz">${x.size}명</span></div>`).join('')
+    +(rest.length>N?`<div class="more">외 ${rest.length-N}팀 대기 중</div>`:'')+(rest.length===0?'<div class="more">다음 대기가 없습니다</div>':'');
+  $('cnt').textContent=`대기 ${d.items.length}팀 · ${d.totalPeople}명`;
+}
+let lastUrl=null;
+async function qr(){try{const d=await (await fetch('/api/info')).json();if(d.joinUrl!==lastUrl){lastUrl=d.joinUrl;$('qrbox').innerHTML=d.svg}}catch(e){}}
+async function complete(){await fetch('/api/complete',{method:'POST'});load()}
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key==='k'||e.key==='K'||e.key==='ㅏ'){e.preventDefault();complete()}
+  if(e.key==='f'||e.key==='F'||e.key==='ㄹ'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+});
+tick();setInterval(tick,10000);load();setInterval(load,2000);qr();setInterval(qr,3000);
 </script></body></html>
 '''
 
@@ -562,12 +623,14 @@ def handle(method, path, query, headers, body, local):
     """라우팅. (상태코드, 본문, 타입) 반환."""
     J = "application/json; charset=utf-8"
     H = "text/html; charset=utf-8"
-    admin_only = path in ("/", "/admin", "/api/queue", "/api/info", "/api/complete")
+    admin_only = path in ("/", "/admin", "/board", "/api/queue", "/api/info", "/api/complete")
     if admin_only and not local:
         return 403, {"error": "관리 기능은 서버 PC에서만 사용할 수 있습니다"}, J
     if method == "GET":
         if path in ("/", "/admin"):
             return 200, ADMIN_PAGE, H
+        if path == "/board":
+            return 200, BOARD_HTML, H
         if path == "/join":
             return 200, JOIN_HTML, H
         if path == "/api/queue":
@@ -656,8 +719,10 @@ def main():
     if ACTUAL_PORT != PORT:
         print(f"※ {PORT}번 포트는 이미 사용 중(이전 서버가 켜져 있을 수 있음) → {ACTUAL_PORT}번으로 실행합니다.")
     start_tunnel(ACTUAL_PORT)
+    print(f"대기표 화면(TV/모니터용): {url}/board   ← F 키로 전체화면, K 키로 다음 손님 호출")
     if not os.environ.get("NO_BROWSER"):
-        threading.Timer(0.7, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.7, lambda: webbrowser.open(url + "/board")).start()
+        threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     try:
         while True:
             conn, addr = sock.accept()
