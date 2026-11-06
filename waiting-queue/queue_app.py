@@ -1,9 +1,8 @@
 """QR 대기표 (단일 파일).
-설치(선택): pip install segno   ← 없어도 실행됨
+설치 필요 없음 (파이썬만 있으면 됨, QR 생성기 내장)
 실행: python queue_app.py   (환경변수: PORT, PUBLIC_URL=http://<PC의 IP>:3000)
 관리 화면: /   손님 등록: /join   K키 = 맨 위 사람 삭제
 """
-import io
 import json
 import os
 import threading
@@ -11,10 +10,6 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-try:
-    import segno  # 없어도 실행됨 (QR 이미지만 안 나옴, 주소는 글자로 표시)
-except ImportError:
-    segno = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", 3000))
@@ -134,6 +129,182 @@ async function track(){
 myId?track():form();
 </script></body></html>
 '''
+
+
+# ---- 내장 QR 생성기 (바이트 모드, 오류정정 L, 버전 1~6 → 최대 134자) ----
+_EXP = [0] * 512
+_LOG = [0] * 256
+_x = 1
+for _i in range(255):
+    _EXP[_i] = _x
+    _LOG[_x] = _i
+    _x <<= 1
+    if _x & 0x100:
+        _x ^= 0x11D
+for _i in range(255, 512):
+    _EXP[_i] = _EXP[_i - 255]
+_QR_VER = {1: (19, 1, 7), 2: (34, 1, 10), 3: (55, 1, 15),
+           4: (80, 1, 20), 5: (108, 1, 26), 6: (136, 2, 18)}  # (데이터 코드워드, 블록 수, 블록당 EC)
+_QR_CAP = {1: 17, 2: 32, 3: 53, 4: 78, 5: 106, 6: 134}
+_QR_ALIGN = {1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34]}
+_QR_MASKS = [
+    lambda x, y: (x + y) % 2 == 0, lambda x, y: y % 2 == 0,
+    lambda x, y: x % 3 == 0, lambda x, y: (x + y) % 3 == 0,
+    lambda x, y: (x // 3 + y // 2) % 2 == 0,
+    lambda x, y: x * y % 2 + x * y % 3 == 0,
+    lambda x, y: (x * y % 2 + x * y % 3) % 2 == 0,
+    lambda x, y: ((x + y) % 2 + x * y % 3) % 2 == 0,
+]
+
+
+def _rs_ec(data, n):
+    gen = [1]
+    for i in range(n):
+        nxt = [0] * (len(gen) + 1)
+        for j, c in enumerate(gen):
+            nxt[j] ^= c
+            if c:
+                nxt[j + 1] ^= _EXP[_LOG[c] + i]
+        gen = nxt
+    rem = [0] * n
+    for b in data:
+        f = b ^ rem[0]
+        rem = rem[1:] + [0]
+        if f:
+            for j in range(n):
+                if gen[j + 1]:
+                    rem[j] ^= _EXP[_LOG[gen[j + 1]] + _LOG[f]]
+    return rem
+
+
+def _qr_matrix(text, mask=None):
+    raw = text.encode("utf-8")
+    ver = next((v for v in range(1, 7) if len(raw) <= _QR_CAP[v]), None)
+    if ver is None:
+        raise ValueError("주소가 너무 깁니다")
+    cap, nblocks, ecn = _QR_VER[ver]
+    bits = "0100" + format(len(raw), "08b") + "".join(format(b, "08b") for b in raw)
+    bits += "0" * min(4, cap * 8 - len(bits))
+    bits += "0" * (-len(bits) % 8)
+    data = [int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)]
+    k = 0
+    while len(data) < cap:
+        data.append((0xEC, 0x11)[k % 2])
+        k += 1
+    per = cap // nblocks
+    blocks = [data[i * per:(i + 1) * per] for i in range(nblocks)]
+    ecs = [_rs_ec(b, ecn) for b in blocks]
+    cw = [b[i] for i in range(per) for b in blocks] + [e[i] for i in range(ecn) for e in ecs]
+    stream = "".join(format(c, "08b") for c in cw)
+
+    n = 17 + 4 * ver
+    M = [[False] * n for _ in range(n)]
+    F = [[False] * n for _ in range(n)]
+
+    def setf(x, y, v):
+        M[y][x] = v
+        F[y][x] = True
+
+    for cx, cy in ((3, 3), (n - 4, 3), (3, n - 4)):
+        for dy in range(-4, 5):
+            for dx in range(-4, 5):
+                x, y = cx + dx, cy + dy
+                if 0 <= x < n and 0 <= y < n:
+                    setf(x, y, max(abs(dx), abs(dy)) not in (2, 4))
+    for i in range(8, n - 8):
+        setf(i, 6, i % 2 == 0)
+        setf(6, i, i % 2 == 0)
+    ap = _QR_ALIGN[ver]
+    for cy in ap:
+        for cx in ap:
+            if F[cy][cx]:
+                continue
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    setf(cx + dx, cy + dy, max(abs(dx), abs(dy)) != 1)
+    for i in range(9):
+        F[8][i] = F[i][8] = True
+    for i in range(8):
+        F[8][n - 1 - i] = F[n - 1 - i][8] = True
+    setf(8, n - 8, True)
+
+    pos = []
+    x = n - 1
+    up = True
+    while x > 0:
+        if x == 6:
+            x -= 1
+        for r in range(n):
+            y = n - 1 - r if up else r
+            for xx in (x, x - 1):
+                if not F[y][xx]:
+                    pos.append((xx, y))
+        up = not up
+        x -= 2
+    base = [r[:] for r in M]
+    for i, (px, py) in enumerate(pos):
+        base[py][px] = i < len(stream) and stream[i] == "1"
+
+    def with_mask(m):
+        A = [r[:] for r in base]
+        for px, py in pos:
+            if _QR_MASKS[m](px, py):
+                A[py][px] = not A[py][px]
+        fmt = (1 << 3) | m
+        r = fmt << 10
+        for i in range(14, 9, -1):
+            if (r >> i) & 1:
+                r ^= 0x537 << (i - 10)
+        fb = ((fmt << 10) | r) ^ 0x5412
+        g = lambda i: (fb >> i) & 1 == 1
+        for i in range(6):
+            A[i][8] = g(i)
+        A[7][8] = g(6)
+        A[8][8] = g(7)
+        A[8][7] = g(8)
+        for i in range(9, 15):
+            A[8][14 - i] = g(i)
+        for i in range(8):
+            A[8][n - 1 - i] = g(i)
+        for i in range(8, 15):
+            A[n - 15 + i][8] = g(i)
+        A[n - 8][8] = True
+        return A
+
+    def penalty(A):
+        p = 0
+        for rows in (A, [list(c) for c in zip(*A)]):
+            for r in rows:
+                run = 1
+                for i in range(1, n):
+                    if r[i] == r[i - 1]:
+                        run += 1
+                    else:
+                        p += run - 2 if run >= 5 else 0
+                        run = 1
+                p += run - 2 if run >= 5 else 0
+        for y in range(n - 1):
+            for x in range(n - 1):
+                if A[y][x] == A[y][x + 1] == A[y + 1][x] == A[y + 1][x + 1]:
+                    p += 3
+        dark = sum(sum(r) for r in A)
+        p += abs(dark * 20 - n * n * 10) // (n * n) * 10
+        return p
+
+    if mask is not None:
+        return with_mask(mask)
+    return min((with_mask(m) for m in range(8)), key=penalty)
+
+
+def make_qr_svg(text, scale=10, border=4):
+    A = _qr_matrix(text)
+    n = len(A)
+    s = (n + border * 2) * scale
+    rects = "".join(
+        f'<rect x="{(x + border) * scale}" y="{(y + border) * scale}" width="{scale}" height="{scale}"/>'
+        for y in range(n) for x in range(n) if A[y][x])
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {s} {s}">'
+            f'<rect width="{s}" height="{s}" fill="#fff"/><g fill="#000">{rects}</g></svg>')
 
 
 class WaitingQueue:
@@ -258,11 +429,8 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/info":
             return self._send(200, {"joinUrl": self._base() + "/join"})
         if p == "/qr.svg":
-            if segno is None:
-                return self._send(404, b"no segno", "text/plain")
-            buf = io.BytesIO()
-            segno.make(self._base() + "/join").save(buf, kind="svg", scale=10, border=2)
-            return self._send(200, buf.getvalue(), "image/svg+xml")
+            svg = make_qr_svg(self._base() + "/join", scale=10, border=2)
+            return self._send(200, svg.encode(), "image/svg+xml")
         if p in PAGES:
             return self._send(200, PAGES[p].encode(), "text/html; charset=utf-8")
         self._send(404, b"Not found", "text/plain")
