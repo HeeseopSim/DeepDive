@@ -1,5 +1,5 @@
 """QR 대기표 (단일 파일).
-설치: pip install segno
+설치(선택): pip install segno   ← 없어도 실행됨
 실행: python queue_app.py   (환경변수: PORT, PUBLIC_URL=http://<PC의 IP>:3000)
 관리 화면: /   손님 등록: /join   K키 = 맨 위 사람 삭제
 """
@@ -11,7 +11,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-import segno
+try:
+    import segno  # 없어도 실행됨 (QR 이미지만 안 나옴, 주소는 글자로 표시)
+except ImportError:
+    segno = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", 3000))
@@ -48,7 +51,7 @@ kbd{background:#334155;border-radius:6px;padding:2px 8px;font-weight:700}
   <div id="list"></div>
   <form class="add" id="addf"><input name="name" placeholder="이름 (직접 추가)" maxlength="30"><input name="size" type="number" min="1" max="99" value="1"><button>추가</button></form>
 </div>
-<div class="panel"><h2>QR로 대기 등록</h2><div class="qr"><img src="/qr.svg" alt="QR"></div><div class="url" id="url"></div></div>
+<div class="panel"><h2>QR로 대기 등록</h2><div class="qr"><img src="/qr.svg" alt="QR" onerror="this.parentNode.style.display='none'"></div><div class="url" id="url" style="font-size:18px;color:#e2e8f0"></div></div>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -255,6 +258,8 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/info":
             return self._send(200, {"joinUrl": self._base() + "/join"})
         if p == "/qr.svg":
+            if segno is None:
+                return self._send(404, b"no segno", "text/plain")
             buf = io.BytesIO()
             segno.make(self._base() + "/join").save(buf, kind="svg", scale=10, border=2)
             return self._send(200, buf.getvalue(), "image/svg+xml")
