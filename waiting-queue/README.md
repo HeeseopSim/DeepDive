@@ -18,10 +18,9 @@ python queue_server.py
 
 > `app.py`, `waiting_queue.py`, `public/` 은 초기 버전(http.server + segno)입니다.
 
-## PC용 한 화면 프로그램 (`queue_board_pc.py`)
-창 하나에 현재 호출 번호 / 다음 순서 / 등록 QR 이 같이 나옴 (안드로이드 `Daegi-board` 앱과 같은 구조).
-```
-python queue_board_pc.py
-```
-K: 다음 손님 호출 · N: 수동 추가 · F11: 전체화면 · 목록 항목 클릭: 삭제.
-손님은 폰 카메라로 QR을 찍어 등록 (같은 Wi-Fi 또는 이 PC의 핫스팟). 주소가 여러 개면 "주소 변경" 버튼.
+## PC 서버 + 모바일 앱 (TCP 소켓 통신)
+- PC: `python queue_board_pc.py` → 소켓 서버(포트 9000) + 대기표 화면. 위쪽의 `📡 IP:포트`가 서버 주소.
+  K: 다음 손님 호출 · N: 수동 추가 · F11: 전체화면 · 목록 항목 클릭: 삭제. 화면 아래에 모바일 접속 로그.
+- 모바일: `dist/Daegi-mobile.apk` → 서버 주소(IP:포트) 입력 또는 QR 스캔으로 연결 → 대기 현황/등록/내 순번.
+  앱 안에 서버 연결용 QR(`daegi://IP:포트`)이 표시됨.
+- 통신: 한 줄 JSON (hello / board / join / status / cancel).

@@ -1,7 +1,7 @@
-"""대기표 PC 서버 (TCP 소켓 통신 + 대기표/QR 한 화면).  외부 모듈 없음 (tkinter 내장).
+"""대기표 PC 서버 (TCP 소켓 통신 + 대기표 화면).  외부 모듈 없음 (tkinter 내장).
 실행: python queue_board_pc.py
  - PC가 TCP 소켓 서버(기본 포트 9000)를 열고, 모바일 앱(Daegi-mobile.apk)이 "IP:포트"로 접속해 연동
- - 화면 위쪽의 노란 글씨 '서버 주소(IP:포트)'를 모바일 앱에 입력하거나, 화면의 QR을 앱으로 스캔
+ - 화면 위쪽의 노란 글씨 '서버 주소(IP:포트)'를 모바일 앱에 입력 (모바일 앱에 서로 연결용 QR이 표시됨)
  - K: 다음 손님 호출 · N: 수동 추가 · F11: 전체화면 · Esc: 해제 · 목록 항목 클릭: 삭제
  - 화면 아래에 모바일 접속/등록 로그가 표시됨
  - 환경변수: PORT (기본 9000)
@@ -20,182 +20,6 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", 9000))
 ACTUAL_PORT = PORT
-
-# ---- 내장 QR 생성기 (바이트 모드, 오류정정 L, 버전 1~6 → 최대 134자) ----
-_EXP = [0] * 512
-_LOG = [0] * 256
-_x = 1
-for _i in range(255):
-    _EXP[_i] = _x
-    _LOG[_x] = _i
-    _x <<= 1
-    if _x & 0x100:
-        _x ^= 0x11D
-for _i in range(255, 512):
-    _EXP[_i] = _EXP[_i - 255]
-_QR_VER = {1: (19, 1, 7), 2: (34, 1, 10), 3: (55, 1, 15),
-           4: (80, 1, 20), 5: (108, 1, 26), 6: (136, 2, 18)}  # (데이터 코드워드, 블록 수, 블록당 EC)
-_QR_CAP = {1: 17, 2: 32, 3: 53, 4: 78, 5: 106, 6: 134}
-_QR_ALIGN = {1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34]}
-_QR_MASKS = [
-    lambda x, y: (x + y) % 2 == 0, lambda x, y: y % 2 == 0,
-    lambda x, y: x % 3 == 0, lambda x, y: (x + y) % 3 == 0,
-    lambda x, y: (x // 3 + y // 2) % 2 == 0,
-    lambda x, y: x * y % 2 + x * y % 3 == 0,
-    lambda x, y: (x * y % 2 + x * y % 3) % 2 == 0,
-    lambda x, y: ((x + y) % 2 + x * y % 3) % 2 == 0,
-]
-
-
-def _rs_ec(data, n):
-    gen = [1]
-    for i in range(n):
-        nxt = [0] * (len(gen) + 1)
-        for j, c in enumerate(gen):
-            nxt[j] ^= c
-            if c:
-                nxt[j + 1] ^= _EXP[_LOG[c] + i]
-        gen = nxt
-    rem = [0] * n
-    for b in data:
-        f = b ^ rem[0]
-        rem = rem[1:] + [0]
-        if f:
-            for j in range(n):
-                if gen[j + 1]:
-                    rem[j] ^= _EXP[_LOG[gen[j + 1]] + _LOG[f]]
-    return rem
-
-
-def _qr_matrix(text, mask=None):
-    raw = text.encode("utf-8")
-    ver = next((v for v in range(1, 7) if len(raw) <= _QR_CAP[v]), None)
-    if ver is None:
-        raise ValueError("주소가 너무 깁니다")
-    cap, nblocks, ecn = _QR_VER[ver]
-    bits = "0100" + format(len(raw), "08b") + "".join(format(b, "08b") for b in raw)
-    bits += "0" * min(4, cap * 8 - len(bits))
-    bits += "0" * (-len(bits) % 8)
-    data = [int(bits[i:i + 8], 2) for i in range(0, len(bits), 8)]
-    k = 0
-    while len(data) < cap:
-        data.append((0xEC, 0x11)[k % 2])
-        k += 1
-    per = cap // nblocks
-    blocks = [data[i * per:(i + 1) * per] for i in range(nblocks)]
-    ecs = [_rs_ec(b, ecn) for b in blocks]
-    cw = [b[i] for i in range(per) for b in blocks] + [e[i] for i in range(ecn) for e in ecs]
-    stream = "".join(format(c, "08b") for c in cw)
-
-    n = 17 + 4 * ver
-    M = [[False] * n for _ in range(n)]
-    F = [[False] * n for _ in range(n)]
-
-    def setf(x, y, v):
-        M[y][x] = v
-        F[y][x] = True
-
-    for cx, cy in ((3, 3), (n - 4, 3), (3, n - 4)):
-        for dy in range(-4, 5):
-            for dx in range(-4, 5):
-                x, y = cx + dx, cy + dy
-                if 0 <= x < n and 0 <= y < n:
-                    setf(x, y, max(abs(dx), abs(dy)) not in (2, 4))
-    for i in range(8, n - 8):
-        setf(i, 6, i % 2 == 0)
-        setf(6, i, i % 2 == 0)
-    ap = _QR_ALIGN[ver]
-    for cy in ap:
-        for cx in ap:
-            if F[cy][cx]:
-                continue
-            for dy in range(-2, 3):
-                for dx in range(-2, 3):
-                    setf(cx + dx, cy + dy, max(abs(dx), abs(dy)) != 1)
-    for i in range(9):
-        F[8][i] = F[i][8] = True
-    for i in range(8):
-        F[8][n - 1 - i] = F[n - 1 - i][8] = True
-    setf(8, n - 8, True)
-
-    pos = []
-    x = n - 1
-    up = True
-    while x > 0:
-        if x == 6:
-            x -= 1
-        for r in range(n):
-            y = n - 1 - r if up else r
-            for xx in (x, x - 1):
-                if not F[y][xx]:
-                    pos.append((xx, y))
-        up = not up
-        x -= 2
-    base = [r[:] for r in M]
-    for i, (px, py) in enumerate(pos):
-        base[py][px] = i < len(stream) and stream[i] == "1"
-
-    def with_mask(m):
-        A = [r[:] for r in base]
-        for px, py in pos:
-            if _QR_MASKS[m](px, py):
-                A[py][px] = not A[py][px]
-        fmt = (1 << 3) | m
-        r = fmt << 10
-        for i in range(14, 9, -1):
-            if (r >> i) & 1:
-                r ^= 0x537 << (i - 10)
-        fb = ((fmt << 10) | r) ^ 0x5412
-        g = lambda i: (fb >> i) & 1 == 1
-        for i in range(6):
-            A[i][8] = g(i)
-        A[7][8] = g(6)
-        A[8][8] = g(7)
-        A[8][7] = g(8)
-        for i in range(9, 15):
-            A[8][14 - i] = g(i)
-        for i in range(8):
-            A[8][n - 1 - i] = g(i)
-        for i in range(8, 15):
-            A[n - 15 + i][8] = g(i)
-        A[n - 8][8] = True
-        return A
-
-    def penalty(A):
-        p = 0
-        for rows in (A, [list(c) for c in zip(*A)]):
-            for r in rows:
-                run = 1
-                for i in range(1, n):
-                    if r[i] == r[i - 1]:
-                        run += 1
-                    else:
-                        p += run - 2 if run >= 5 else 0
-                        run = 1
-                p += run - 2 if run >= 5 else 0
-        for y in range(n - 1):
-            for x in range(n - 1):
-                if A[y][x] == A[y][x + 1] == A[y + 1][x] == A[y + 1][x + 1]:
-                    p += 3
-        dark = sum(sum(r) for r in A)
-        p += abs(dark * 20 - n * n * 10) // (n * n) * 10
-        return p
-
-    if mask is not None:
-        return with_mask(mask)
-    return min((with_mask(m) for m in range(8)), key=penalty)
-
-
-def make_qr_svg(text, scale=10, border=4):
-    A = _qr_matrix(text)
-    n = len(A)
-    s = (n + border * 2) * scale
-    rects = "".join(
-        f'<rect x="{(x + border) * scale}" y="{(y + border) * scale}" width="{scale}" height="{scale}"/>'
-        for y in range(n) for x in range(n) if A[y][x])
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {s} {s}">'
-            f'<rect width="{s}" height="{s}" fill="#fff"/><g fill="#000">{rects}</g></svg>')
-
 
 def _public(x):
     """토큰(취소 권한)은 본인에게만 → 응답에서 제외."""
@@ -285,15 +109,6 @@ class WaitingQueue:
                     "lastCalled": self.last_called}
 
 
-def mask(name):
-    n = list(str(name))
-    if len(n) <= 1:
-        return "".join(n)
-    if len(n) == 2:
-        return n[0] + "*"
-    return n[0] + "*" * (len(n) - 2) + n[-1]
-
-
 queue = WaitingQueue(os.path.join(HERE, "data.json"))
 EVENTS = []  # (시각, 내용) 최근 접속/등록 로그
 
@@ -312,7 +127,7 @@ def handle_msg(req, peer):
     if cmd == "board":
         snap = queue.snapshot()
         items = snap["items"]
-        view = lambda x: {"id": x["id"], "name": mask(x["name"]), "size": x["size"]}
+        view = lambda x: {"id": x["id"], "name": x["name"], "size": x["size"]}
         return {"ok": True, "current": view(items[0]) if items else None,
                 "next": [view(x) for x in items[1:6]], "more": max(0, len(items) - 6),
                 "count": len(items), "people": snap["totalPeople"]}
@@ -321,7 +136,7 @@ def handle_msg(req, peer):
             item = queue.add(req.get("name"), req.get("size"))
         except ValueError as e:
             return {"ok": False, "error": str(e)}
-        log_event(f"📱 {peer} 대기 등록: {item['id']}번 {mask(item['name'])} {item['size']}명")
+        log_event(f"📱 {peer} 대기 등록: {item['id']}번 {item['name']} {item['size']}명")
         return {"ok": True, **item}
     if cmd == "status":
         try:
@@ -427,12 +242,14 @@ def local_ips():
     return out or ["127.0.0.1"]
 
 
-# ---------------- 화면 (tkinter) ----------------
+# ---------------- 화면 (tkinter): 대기표만 ----------------
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 
 BG, PANEL, GREEN, GRAY = "#0b1220", "#111b30", "#16a34a", "#1e293b"
 TEXT, MUTED, BLUE = "#e2e8f0", "#94a3b8", "#60a5fa"
+FONT = "Malgun Gothic"
+MAX_ROWS = 8
 
 
 class App:
@@ -441,68 +258,59 @@ class App:
         self.port = port
         self.ip_index = 0
         self.fullscreen = False
-        self.last_qr = None
-        root.title("대기표 + QR")
+        root.title("대기표")
         root.configure(bg=BG)
         root.geometry("1280x720")
         root.minsize(900, 560)
 
         head = tk.Frame(root, bg=PANEL)
         head.pack(fill="x")
-        tk.Label(head, text="🏥 대기 현황", font=("Malgun Gothic", 20, "bold"), fg="white", bg=PANEL).pack(side="left", padx=16, pady=10)
+        tk.Label(head, text="🏥 대기 현황", font=(FONT, 20, "bold"), fg="white", bg=PANEL).pack(side="left", padx=16, pady=10)
         self.addr_btn = tk.Button(head, text="주소 변경", command=self.next_ip, relief="flat", bg=GRAY, fg=TEXT)
         self.addr_btn.pack(side="right", padx=12)
-        self.hint = tk.Label(head, text="", font=("Malgun Gothic", 11), fg=MUTED, bg=PANEL)
+        self.addr = tk.Label(head, text="", font=("Consolas", 16, "bold"), fg="#fbbf24", bg=PANEL)
+        self.addr.pack(side="right", padx=8)
+        self.hint = tk.Label(head, text="모바일 앱 서버 주소 ▶", font=(FONT, 11), fg=MUTED, bg=PANEL)
         self.hint.pack(side="right", padx=4)
-        self.addr = tk.Label(head, text="", font=("Consolas", 18, "bold"), fg="#fbbf24", bg=PANEL)
-        self.addr.pack(side="right", padx=14)
 
         bottom = tk.Frame(root, bg=PANEL)
         bottom.pack(side="bottom", fill="x")
-        tk.Button(bottom, text="▶ 다음 손님 호출 (K)", command=self.complete, font=("Malgun Gothic", 16, "bold"),
+        tk.Button(bottom, text="▶ 다음 손님 호출 (K)", command=self.complete, font=(FONT, 16, "bold"),
                   bg="white", fg="#0f172a", relief="flat").pack(side="left", padx=12, pady=10, ipadx=14, ipady=8)
-        tk.Button(bottom, text="＋ 추가 (N)", command=self.add_dialog, font=("Malgun Gothic", 13),
+        tk.Button(bottom, text="＋ 추가 (N)", command=self.add_dialog, font=(FONT, 13),
                   bg=GRAY, fg=TEXT, relief="flat").pack(side="left", padx=4, pady=10, ipadx=10, ipady=8)
         self.evt = tk.Label(bottom, text="모바일 접속 대기 중… (F11 전체화면 · 목록 항목 클릭: 삭제)", fg=MUTED, bg=PANEL,
-                            font=("Malgun Gothic", 11), anchor="e", justify="right")
+                            font=(FONT, 11), anchor="e", justify="right")
         self.evt.pack(side="right", padx=14)
 
         main = tk.Frame(root, bg=BG)
         main.pack(fill="both", expand=True, padx=14, pady=12)
-        main.columnconfigure(0, weight=3, uniform="c")
-        main.columnconfigure(1, weight=2, uniform="c")
+        main.columnconfigure(0, weight=2, uniform="c")
+        main.columnconfigure(1, weight=3, uniform="c")
         main.rowconfigure(0, weight=1)
 
-        left = tk.Frame(main, bg=BG)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        self.now = tk.Frame(left, bg=GREEN)
-        self.now.pack(fill="x")
-        self.now_lab = tk.Label(self.now, text="현재 호출", font=("Malgun Gothic", 18), fg="white", bg=GREEN)
-        self.now_lab.pack(pady=(14, 0))
-        self.now_num = tk.Label(self.now, text="-", font=("Malgun Gothic", 90, "bold"), fg="white", bg=GREEN)
+        # 왼쪽: 현재 호출
+        self.now = tk.Frame(main, bg=GREEN)
+        self.now.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        inner = tk.Frame(self.now, bg=GREEN)
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+        self.now_lab = tk.Label(inner, text="현재 호출", font=(FONT, 22), fg="white", bg=GREEN)
+        self.now_lab.pack()
+        self.now_num = tk.Label(inner, text="-", font=(FONT, 120, "bold"), fg="white", bg=GREEN)
         self.now_num.pack()
-        self.now_who = tk.Label(self.now, text="", font=("Malgun Gothic", 26, "bold"), fg="white", bg=GREEN)
-        self.now_who.pack(pady=(0, 16))
+        self.now_who = tk.Label(inner, text="", font=(FONT, 34, "bold"), fg="white", bg=GREEN)
+        self.now_who.pack()
 
-        nxt = tk.Frame(left, bg=PANEL)
-        nxt.pack(fill="both", expand=True, pady=(12, 0))
-        tk.Label(nxt, text="다음 순서", font=("Malgun Gothic", 15), fg=MUTED, bg=PANEL).pack(anchor="w", padx=18, pady=(12, 4))
+        # 오른쪽: 다음 순서
+        nxt = tk.Frame(main, bg=PANEL)
+        nxt.grid(row=0, column=1, sticky="nsew")
+        tk.Label(nxt, text="다음 순서", font=(FONT, 18), fg=MUTED, bg=PANEL).pack(anchor="w", padx=22, pady=(16, 6))
         self.list_box = tk.Frame(nxt, bg=PANEL)
-        self.list_box.pack(fill="both", expand=True, padx=18)
-        self.more = tk.Label(nxt, text="", font=("Malgun Gothic", 13), fg=MUTED, bg=PANEL)
-        self.more.pack(anchor="w", padx=18, pady=(0, 10))
-
-        right = tk.Frame(main, bg=PANEL)
-        right.grid(row=0, column=1, sticky="nsew")
-        tk.Label(right, text="📱 앱으로 QR을 스캔해 연결", font=("Malgun Gothic", 18, "bold"), fg="white", bg=PANEL).pack(pady=(16, 8))
-        self.qr_canvas = tk.Canvas(right, bg="white", highlightthickness=0)
-        self.qr_canvas.pack(fill="both", expand=True, padx=18, pady=4)
-        self.qr_canvas.bind("<Configure>", lambda e: self.draw_qr())
-        self.url_var = tk.StringVar()
-        tk.Entry(right, textvariable=self.url_var, state="readonly", justify="center", font=("Malgun Gothic", 12),
-                 readonlybackground=PANEL, fg="white", relief="flat").pack(fill="x", padx=18, pady=(8, 0))
-        self.count = tk.Label(right, text="", font=("Malgun Gothic", 18), fg=MUTED, bg=PANEL)
-        self.count.pack(pady=(6, 14))
+        self.list_box.pack(fill="both", expand=True, padx=22)
+        self.more = tk.Label(nxt, text="", font=(FONT, 15), fg=MUTED, bg=PANEL)
+        self.more.pack(anchor="w", padx=22)
+        self.count = tk.Label(nxt, text="", font=(FONT, 20, "bold"), fg=TEXT, bg=PANEL)
+        self.count.pack(anchor="w", padx=22, pady=(4, 16))
 
         root.bind("<Key>", self.on_key)
         root.bind("<F11>", self.toggle_fullscreen)
@@ -511,8 +319,6 @@ class App:
 
     # --- 입력 ---
     def on_key(self, e):
-        if isinstance(e.widget, tk.Entry) and str(e.widget.cget("state")) == "normal":
-            return
         ch = (e.char or "").lower()
         if ch in ("k", "ㅏ"):
             self.complete()
@@ -528,7 +334,7 @@ class App:
 
     def next_ip(self):
         self.ip_index += 1
-        self.refresh()
+        self.refresh(once=True)
 
     # --- 동작 ---
     def complete(self):
@@ -554,37 +360,10 @@ class App:
             self.refresh(once=True)
 
     # --- 그리기 ---
-    def join_url(self):
-        """(QR에 넣을 문자열, 안내 문구, 서버 주소 IP:포트)"""
+    def server_addr(self):
         ips = local_ips()
         ip = ips[self.ip_index % len(ips)]
-        addr = f"{ip}:{self.port}"
-        return f"daegi://{addr}", f"모바일 앱에 입력 · 주소 {self.ip_index % len(ips) + 1}/{len(ips)}", addr
-
-    def draw_qr(self):
-        c = self.qr_canvas
-        c.delete("all")
-        url = self.url_var.get()
-        if not url:
-            return
-        try:
-            m = _qr_matrix(url)
-        except Exception as e:  # noqa: BLE001
-            c.create_text(10, 10, anchor="nw", text=f"QR 생성 오류: {e}")
-            return
-        n = len(m)
-        border = 2
-        size = min(c.winfo_width(), c.winfo_height())
-        cell = max(1, size // (n + border * 2))
-        total = cell * (n + border * 2)
-        ox = (c.winfo_width() - total) // 2
-        oy = (c.winfo_height() - total) // 2
-        for y in range(n):
-            for x in range(n):
-                if m[y][x]:
-                    x0 = ox + (x + border) * cell
-                    y0 = oy + (y + border) * cell
-                    c.create_rectangle(x0, y0, x0 + cell, y0 + cell, fill="black", outline="black")
+        return f"{ip}:{self.port}", len(ips)
 
     def refresh(self, once=False):
         snap = queue.snapshot()
@@ -592,45 +371,44 @@ class App:
         n = len(items)
         if n == 0:
             self.now.configure(bg=GRAY)
-            for w, t in ((self.now_lab, ""), (self.now_num, "대기 없음"), (self.now_who, "")):
-                w.configure(text=t, bg=GRAY)
-            self.now_num.configure(font=("Malgun Gothic", 40, "bold"))
+            self.now.winfo_children()[0].configure(bg=GRAY)
+            self.now_lab.configure(text="", bg=GRAY)
+            self.now_num.configure(text="대기 없음", bg=GRAY, font=(FONT, 48, "bold"))
+            self.now_who.configure(text="", bg=GRAY)
         else:
             top = items[0]
             self.now.configure(bg=GREEN)
+            self.now.winfo_children()[0].configure(bg=GREEN)
             self.now_lab.configure(text="현재 호출", bg=GREEN)
-            self.now_num.configure(text=f"{top['id']}번", bg=GREEN, font=("Malgun Gothic", 90, "bold"))
-            self.now_who.configure(text=f"{mask(top['name'])} 님 · {top['size']}명", bg=GREEN)
+            self.now_num.configure(text=f"{top['id']}번", bg=GREEN, font=(FONT, 120, "bold"))
+            self.now_who.configure(text=f"{top['name']} 님 · {top['size']}명", bg=GREEN)
 
         for w in self.list_box.winfo_children():
             w.destroy()
-        show = items[1:6]
+        show = items[1:1 + MAX_ROWS]
         for it in show:
             row = tk.Frame(self.list_box, bg=PANEL, cursor="hand2")
-            row.pack(fill="x", pady=2)
+            row.pack(fill="x", pady=3)
             labs = [
-                tk.Label(row, text=f"{it['id']}번", width=5, anchor="w", font=("Malgun Gothic", 20, "bold"), fg=BLUE, bg=PANEL),
-                tk.Label(row, text=mask(it["name"]), anchor="w", font=("Malgun Gothic", 18), fg="white", bg=PANEL),
-                tk.Label(row, text=f"{it['size']}명", anchor="e", font=("Malgun Gothic", 16), fg=MUTED, bg=PANEL),
+                tk.Label(row, text=f"{it['id']}번", width=5, anchor="w", font=(FONT, 24, "bold"), fg=BLUE, bg=PANEL),
+                tk.Label(row, text=it["name"], anchor="w", font=(FONT, 22), fg="white", bg=PANEL),
+                tk.Label(row, text=f"{it['size']}명", anchor="e", font=(FONT, 20), fg=MUTED, bg=PANEL),
             ]
             labs[0].pack(side="left")
             labs[1].pack(side="left", fill="x", expand=True)
             labs[2].pack(side="right")
             for w in [row] + labs:
-                w.bind("<Button-1>", lambda e, i=it["id"], nm=mask(it["name"]): self.remove(i, nm))
+                w.bind("<Button-1>", lambda e, i=it["id"], nm=it["name"]: self.remove(i, nm))
         rest = n - 1 - len(show)
         self.more.configure(text="다음 대기가 없습니다" if n <= 1 else (f"외 {rest}팀 대기 중" if rest > 0 else ""))
         self.count.configure(text=f"대기 {n}팀 · {snap['totalPeople']}명")
 
-        url, how, addr = self.join_url()
-        self.hint.configure(text=how)
+        addr, total = self.server_addr()
         self.addr.configure(text="📡 " + addr)
+        self.addr_btn.configure(text=f"주소 변경 ({self.ip_index % total + 1}/{total})")
         if EVENTS:
             t, x = EVENTS[-1]
             self.evt.configure(text=f"[{t}] {x}")
-        if url != self.url_var.get():
-            self.url_var.set(url)
-            self.draw_qr()
         if not once:
             self.root.after(1500, self.refresh)
 

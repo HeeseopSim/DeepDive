@@ -18,6 +18,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -67,6 +68,9 @@ class MainActivity : Activity() {
     private lateinit var nameInput: EditText
     private lateinit var sizeInput: EditText
     private lateinit var regMsg: TextView
+    // 서버 연결용 QR
+    private lateinit var qrView: ImageView
+    private lateinit var qrText: TextView
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -227,6 +231,22 @@ class MainActivity : Activity() {
         regMsg = tv("", 14f, AMBER)
         regCard.addView(regMsg, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
         body.addView(regCard, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+        // 서버 연결 QR (다른 폰이 이 QR을 스캔해 같은 서버에 연결)
+        val qrCard = card()
+        qrCard.addView(tv("📱 서버 연결 QR", 18f, Color.WHITE, true))
+        qrCard.addView(tv("다른 폰에서 앱의 'QR 스캔으로 연결'로 찍으면 같은 서버에 연결됩니다.", 13f, MUTED),
+            lp(MATCH_PARENT, WRAP_CONTENT, 0f, 2))
+        qrView = ImageView(this).apply {
+            setBackgroundColor(Color.WHITE)
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            maxHeight = (resources.displayMetrics.widthPixels * 0.7).toInt()
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        qrCard.addView(qrView, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+        qrText = tv("", 14f, AMBER, false, true).apply { setTextIsSelectable(true) }
+        qrCard.addView(qrText, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
+        body.addView(qrCard, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
 
         mainView = ScrollView(this).apply {
             addView(body)
@@ -252,6 +272,12 @@ class MainActivity : Activity() {
         setupView.visibility = View.GONE
         mainView.visibility = View.VISIBLE
         addrLabel.text = "서버 $b"
+        qrText.text = "daegi://$b"
+        try {
+            qrView.setImageBitmap(Qr.bitmap("daegi://$b"))
+        } catch (e: Exception) {
+            qrText.text = "QR 생성 오류: ${e.message}"
+        }
         handler.removeCallbacks(ticker)
         handler.post(ticker)
     }

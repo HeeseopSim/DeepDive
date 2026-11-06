@@ -22,5 +22,6 @@ android {
 }
 
 dependencies {
+    implementation("com.google.zxing:core:3.5.3")  // QR 생성
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")  // QR 스캔 (카메라 권한 불필요)
 }
