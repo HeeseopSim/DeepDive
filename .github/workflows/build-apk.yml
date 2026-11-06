@@ -1,4 +1,4 @@
-name: Build Android APKs
+name: Build mobile APK
 
 on:
   workflow_dispatch:
@@ -28,21 +28,18 @@ jobs:
         run: gradle --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: apks
-          path: |
-            waiting-queue/android/app/build/outputs/apk/debug/app-debug.apk
-            waiting-queue/android/board/build/outputs/apk/debug/board-debug.apk
+          name: apk
+          path: waiting-queue/android/app/build/outputs/apk/debug/app-debug.apk
       - name: Commit APK to branch (waiting-queue/dist)
         run: |
           cp waiting-queue/android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/app.apk"
-          cp waiting-queue/android/board/build/outputs/apk/debug/board-debug.apk "$RUNNER_TEMP/board.apk"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin "${GITHUB_REF_NAME}"
           git reset --hard "origin/${GITHUB_REF_NAME}"
           mkdir -p waiting-queue/dist
-          cp "$RUNNER_TEMP/app.apk" waiting-queue/dist/QR-waiting-queue.apk
-          cp "$RUNNER_TEMP/board.apk" waiting-queue/dist/Daegi-board.apk
-          git add waiting-queue/dist
+          rm -f waiting-queue/dist/QR-waiting-queue.apk waiting-queue/dist/Daegi-board.apk
+          cp "$RUNNER_TEMP/app.apk" waiting-queue/dist/Daegi-mobile.apk
+          git add -A waiting-queue/dist
           git commit -m "Add built APK [skip ci]" || echo "no change"
           git push origin "HEAD:${GITHUB_REF_NAME}"

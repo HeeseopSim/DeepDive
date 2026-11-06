@@ -1,7 +1,8 @@
 """대기표 + QR (PC용, 창 하나에 한 화면). 파이썬만 있으면 됨 (tkinter 내장, 외부 모듈 없음).
 실행: python queue_board_pc.py
  - 한 창에 현재 호출 번호 / 다음 순서 / 등록 QR 이 같이 나옴 (안드로이드 Daegi-board 앱과 같은 구조)
- - 손님은 폰 카메라로 QR을 찍으면 등록 페이지가 열림 (같은 Wi-Fi 또는 이 PC의 핫스팟)
+ - 모바일 앱(Daegi-mobile.apk)에 화면 위 '서버 주소(IP:포트)'를 입력하거나 QR을 스캔하면 연동됨
+ - 폰 카메라로 QR을 찍어도 등록 페이지가 열림 (같은 Wi-Fi 또는 이 PC의 핫스팟)
  - K 키: 다음 손님 호출 · N 키: 수동 추가 · F11: 전체화면 · Esc: 전체화면 해제
  - 환경변수: PORT(기본 8080), PUBLIC_URL(QR에 넣을 주소 직접 지정)
  - cloudflared(.exe)가 같은 폴더/PATH에 있으면 인터넷 주소(터널)를 자동으로 만들어 QR에 사용
@@ -411,6 +412,15 @@ def start_tunnel(port):
 
 
 
+def mask(name):
+    n = list(str(name))
+    if len(n) <= 1:
+        return "".join(n)
+    if len(n) == 2:
+        return n[0] + "*"
+    return n[0] + "*" * (len(n) - 2) + n[-1]
+
+
 queue = WaitingQueue(os.path.join(HERE, "data.json"))
 STATUS_TEXT = {200: "OK", 204: "No Content", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
 
@@ -462,6 +472,16 @@ def handle(method, path, query, body):
     if method == "GET":
         if path in ("/", "/join"):
             return 200, JOIN_HTML, "text/html; charset=utf-8"
+        if path == "/api/ping":
+            return 200, {"ok": True, "app": "waiting-queue"}, J
+        if path == "/api/board":
+            snap = queue.snapshot()
+            items = snap["items"]
+            view = lambda x: {"id": x["id"], "name": mask(x["name"]), "size": x["size"]}
+            return 200, {"current": view(items[0]) if items else None,
+                         "next": [view(x) for x in items[1:6]],
+                         "more": max(0, len(items) - 6), "count": len(items),
+                         "people": snap["totalPeople"]}, J
         if path == "/api/status":
             try:
                 id = int(query.get("id", ["0"])[0])
@@ -601,15 +621,6 @@ BG, PANEL, GREEN, GRAY = "#0b1220", "#111b30", "#16a34a", "#1e293b"
 TEXT, MUTED, BLUE = "#e2e8f0", "#94a3b8", "#60a5fa"
 
 
-def mask(name):
-    n = list(str(name))
-    if len(n) <= 1:
-        return "".join(n)
-    if len(n) == 2:
-        return n[0] + "*"
-    return n[0] + "*" * (len(n) - 2) + n[-1]
-
-
 class App:
     def __init__(self, root, port):
         self.root = root
@@ -629,6 +640,8 @@ class App:
         self.addr_btn.pack(side="right", padx=12)
         self.hint = tk.Label(head, text="", font=("Malgun Gothic", 11), fg=MUTED, bg=PANEL)
         self.hint.pack(side="right", padx=4)
+        self.addr = tk.Label(head, text="", font=("Consolas", 18, "bold"), fg="#fbbf24", bg=PANEL)
+        self.addr.pack(side="right", padx=14)
 
         bottom = tk.Frame(root, bg=PANEL)
         bottom.pack(side="bottom", fill="x")
@@ -733,7 +746,7 @@ class App:
             return TUNNEL_URL + "/join", "인터넷 주소 (같은 Wi-Fi 아니어도 OK)"
         ips = local_ips()
         ip = ips[self.ip_index % len(ips)]
-        return f"http://{ip}:{self.port}/join", f"같은 Wi-Fi/핫스팟에서 접속 ({self.ip_index % len(ips) + 1}/{len(ips)})"
+        return f"http://{ip}:{self.port}/join", f"모바일 앱에 입력 · 주소 {self.ip_index % len(ips) + 1}/{len(ips)}"
 
     def draw_qr(self):
         c = self.qr_canvas
@@ -798,6 +811,7 @@ class App:
 
         url, how = self.join_url()
         self.hint.configure(text=how)
+        self.addr.configure(text="📡 " + (url.split("//", 1)[1].rsplit("/join", 1)[0]))
         if url != self.url_var.get():
             self.url_var.set(url)
             self.draw_qr()
