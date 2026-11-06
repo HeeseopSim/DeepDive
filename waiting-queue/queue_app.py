@@ -24,6 +24,8 @@ from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", 3000))
 PUBLIC_URL = os.environ.get("PUBLIC_URL")
+BUILD_ID = "v4-" + time.strftime("%m%d%H%M")
+TUNNEL_PENDING = False
 
 ADMIN_HTML = r'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
@@ -56,7 +58,11 @@ kbd{background:#334155;border-radius:6px;padding:2px 8px;font-weight:700}
   <div id="list"></div>
   <form class="add" id="addf"><input name="name" placeholder="이름 (직접 추가)" maxlength="30"><input name="size" type="number" min="1" max="99" value="1"><button>추가</button></form>
 </div>
-<div class="panel"><h2>QR로 대기 등록</h2><div class="qr"><img src="/qr.svg" alt="QR" onerror="this.parentNode.style.display='none'"></div><div class="url" id="url" style="font-size:18px;color:#e2e8f0"></div></div>
+<div class="panel"><h2>QR로 대기 등록</h2>
+  <div class="qr"><img id="qr" alt="QR" style="display:none"></div>
+  <div id="qrmsg" style="margin:10px 0;font-weight:700"></div>
+  <div class="url" id="url" style="font-size:15px;color:#e2e8f0"></div>
+  <div style="margin-top:14px;font-size:11px;color:#64748b">build BUILD_ID</div></div>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -79,7 +85,19 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==='k'||e.key==='K'||e.key==='ㅏ'){e.preventDefault();complete()}
 });
-fetch('/api/info').then(r=>r.json()).then(d=>$('url').textContent=d.joinUrl);
+let lastUrl=null,qrFail=0;
+const qr=$('qr');
+qr.onload=()=>{qr.style.display='block';qrFail=0};
+qr.onerror=()=>{qr.style.display='none';qrFail++;$('qrmsg').textContent='⚠ QR 이미지를 불러오지 못했습니다 (아래 주소를 직접 사용하세요)'};
+async function refreshQR(){
+  try{
+    const d=await (await fetch('/api/info')).json();
+    if(d.joinUrl!==lastUrl||qrFail){lastUrl=d.joinUrl;qr.src='/qr.svg?u='+encodeURIComponent(d.joinUrl)+'&t='+Date.now()}
+    $('url').textContent=d.joinUrl;
+    if(!qrFail)$('qrmsg').textContent=d.tunnel?'🌐 인터넷 주소 · 같은 Wi-Fi가 아니어도 접속됩니다':(d.pending?'⏳ 인터넷 주소 만드는 중… QR이 곧 바뀝니다':'⚠ 이 PC와 같은 Wi-Fi에서만 접속됩니다');
+  }catch(e){$('qrmsg').textContent='⚠ 서버와 연결이 끊겼습니다 (서버 창이 꺼졌는지 확인)'}
+}
+refreshQR();setInterval(refreshQR,3000);
 load();setInterval(load,2000);
 </script></body></html>
 '''
@@ -406,7 +424,7 @@ class WaitingQueue:
 
 
 queue = WaitingQueue(os.path.join(HERE, "data.json"))
-PAGES = {"/": ADMIN_HTML, "/admin": ADMIN_HTML, "/join": JOIN_HTML}
+PAGES = {"/": ADMIN_HTML.replace("BUILD_ID", BUILD_ID), "/admin": ADMIN_HTML.replace("BUILD_ID", BUILD_ID), "/join": JOIN_HTML}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -460,9 +478,15 @@ class Handler(BaseHTTPRequestHandler):
                 id = 0
             return self._send(200, queue.status(id))
         if p == "/api/info":
-            return self._send(200, {"joinUrl": self._base() + "/join"})
+            return self._send(200, {"joinUrl": self._base() + "/join",
+                                    "tunnel": bool(PUBLIC_URL) and "trycloudflare.com" in PUBLIC_URL,
+                                    "pending": TUNNEL_PENDING})
         if p == "/qr.svg":
-            svg = make_qr_svg(self._base() + "/join", scale=10, border=2)
+            try:
+                svg = make_qr_svg(self._base() + "/join", scale=10, border=2)
+            except Exception as e:  # noqa: BLE001
+                print("QR 생성 오류:", e)
+                return self._send(500, str(e).encode(), "text/plain; charset=utf-8")
             return self._send(200, svg.encode(), "image/svg+xml")
         if p in PAGES:
             return self._send(200, PAGES[p].encode(), "text/html; charset=utf-8")
@@ -510,7 +534,7 @@ def _download_cloudflared():
 
 def start_tunnel(port):
     """cloudflared 터널을 켜고 인터넷 주소를 PUBLIC_URL로 설정."""
-    global PUBLIC_URL
+    global PUBLIC_URL, TUNNEL_PENDING
     if PUBLIC_URL or os.environ.get("NO_TUNNEL"):
         return
     exe = _find_cloudflared()
@@ -536,20 +560,31 @@ def start_tunnel(port):
         print("터널 실행 실패:", e)
         return
     atexit.register(proc.terminate)
+    TUNNEL_PENDING = True
 
     def watch():
-        global PUBLIC_URL
+        global PUBLIC_URL, TUNNEL_PENDING
         for line in proc.stdout:
             m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
             if m and not PUBLIC_URL:
                 PUBLIC_URL = m.group(0)
+                TUNNEL_PENDING = False
                 print(f"\n인터넷 주소 준비 완료: {PUBLIC_URL}")
                 print("관리 화면을 새로고침하면 이 주소로 된 QR이 나옵니다.")
+        TUNNEL_PENDING = False
+        if PUBLIC_URL:
+            print("\n⚠ 터널이 끊겼습니다. 서버를 껐다 다시 켜야 새 인터넷 주소가 만들어집니다.")
+        else:
+            print("터널을 만들지 못했습니다 (인터넷 연결/방화벽 확인). 같은 Wi-Fi에서만 접속됩니다.")
     threading.Thread(target=watch, daemon=True).start()
     print("인터넷 주소 만드는 중... (보통 5~10초)")
 
 
 if __name__ == "__main__":
-    print(f"대기표 서버 실행: http://localhost:{PORT}  (관리 화면은 이 PC에서만)")
+    try:
+        httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    except OSError as e:
+        sys.exit(f"포트 {PORT}를 쓸 수 없습니다: {e}\n→ 이전에 켜 둔 서버 창을 모두 닫고 다시 실행하세요.")
+    print(f"대기표 서버 실행 [{BUILD_ID}]: http://localhost:{PORT}  (관리 화면은 이 PC에서만)")
     start_tunnel(PORT)
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    httpd.serve_forever()
