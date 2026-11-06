@@ -17,11 +17,13 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.json.JSONObject
@@ -61,8 +63,14 @@ class MainActivity : Activity() {
     private lateinit var listBox: LinearLayout
     private lateinit var moreView: TextView
     private lateinit var countView: TextView
-    private lateinit var qrView: ImageView
-    private lateinit var qrText: TextView
+    private lateinit var regView: ScrollView
+    private lateinit var regForm: LinearLayout
+    private lateinit var regDone: LinearLayout
+    private lateinit var regName: EditText
+    private lateinit var regSizeText: TextView
+    private lateinit var regMsg: TextView
+    private lateinit var regDoneNum: TextView
+    private var partySize = 1
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -103,6 +111,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContentView(buildUi())
         val saved = prefs.getString("server", null)?.let { normalize(it) }
         if (saved != null) showMain(saved) else showSetup(null)
@@ -143,10 +152,6 @@ class MainActivity : Activity() {
         head.addView(tv("🏥 대기 현황", 34f, Color.WHITE, true))
         addrLabel = tv("", 24f, AMBER).apply { setTextIsSelectable(true) }
         head.addView(addrLabel, lp(0, WRAP_CONTENT, 1f, 0, 14))
-        head.addView(Button(this).apply {
-            text = "＋ 등록"
-            setOnClickListener { registerDialog() }
-        })
         head.addView(Button(this).apply {
             text = "서버 변경"
             setOnClickListener { showSetup(null) }
@@ -219,25 +224,113 @@ class MainActivity : Activity() {
         left.addView(next, lp(MATCH_PARENT, 0, 3f, 8))
         mainView.addView(left, lp(0, MATCH_PARENT, 3f))
 
-        // 오른쪽 QR
-        val right = LinearLayout(this).apply {
+        // 오른쪽: 큰 등록 버튼
+        val regBtn = TextView(this).apply {
+            text = "＋\n대기 등록"
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(76f))
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            background = round(Color.parseColor("#2563eb"), 24)
+            isClickable = true
+            setOnClickListener { openRegister() }
+        }
+        mainView.addView(regBtn, lp(0, MATCH_PARENT, 2f, 0, 8))
+        root.addView(mainView, lp(MATCH_PARENT, 0, 1f))
+
+        // --- 대기 등록 화면 (큰 글씨/큰 버튼) ---
+        regView = ScrollView(this).apply {
+            visibility = View.GONE
+            setBackgroundColor(BG)
+        }
+        val regBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(12), dp(24), dp(16))
+        }
+        regForm = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        regForm.addView(tv("대기 등록", 58f, Color.WHITE, true))
+        regForm.addView(tv("이름", 34f, MUTED), lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+        regName = EditText(this).apply {
+            hint = "이름을 입력하세요"
+            setHintTextColor(Color.GRAY)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(58f))
+            setSingleLine()
+            background = round(GRAY, 14)
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+        }
+        regForm.addView(regName, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
+        regForm.addView(tv("인원", 34f, MUTED), lp(MATCH_PARENT, WRAP_CONTENT, 0f, 14))
+
+        fun stepBtn(label: String, delta: Int) = TextView(this).apply {
+            text = label
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(84f))
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            background = round(GRAY, 18)
+            isClickable = true
+            setOnClickListener {
+                partySize = (partySize + delta).coerceIn(1, 99)
+                regSizeText.text = "${partySize}명"
+            }
+        }
+        val stepper = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        stepper.addView(stepBtn("－", -1), lp(px(140f).toInt(), px(140f).toInt()))
+        regSizeText = tv("1명", 84f, Color.WHITE, true, true)
+        stepper.addView(regSizeText, lp(0, WRAP_CONTENT, 1f))
+        stepper.addView(stepBtn("＋", 1), lp(px(140f).toInt(), px(140f).toInt()))
+        regForm.addView(stepper, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
+
+        regForm.addView(TextView(this).apply {
+            text = "대기표 받기"
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(66f))
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            background = round(GREEN, 22)
+            isClickable = true
+            setOnClickListener { submitRegister() }
+        }, lp(MATCH_PARENT, px(150f).toInt(), 0f, 18))
+        regForm.addView(TextView(this).apply {
+            text = "취소"
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(46f))
+            setTextColor(MUTED)
+            gravity = Gravity.CENTER
+            background = round(GRAY, 22)
+            isClickable = true
+            setOnClickListener { closeRegister() }
+        }, lp(MATCH_PARENT, px(110f).toInt(), 0f, 10))
+        regMsg = tv("", 32f, AMBER, true, true)
+        regForm.addView(regMsg, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+
+        regDone = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            background = round(PANEL)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            visibility = View.GONE
         }
-        right.addView(tv("📱 QR로 연결", 30f, Color.WHITE, true, true), lp(MATCH_PARENT, WRAP_CONTENT))
-        val qrSide = minOf(w * 0.36f - dp(40), (h - dp(110)) * 0.62f).toInt().coerceAtLeast(dp(120))
-        qrView = ImageView(this).apply {
-            setBackgroundColor(Color.WHITE)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(6), dp(6), dp(6), dp(6))
-        }
-        right.addView(qrView, lp(qrSide, qrSide, 0f, 8))
-        qrText = tv("", 24f, AMBER, false, true).apply { setTextIsSelectable(true) }
-        right.addView(qrText, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 8))
-        mainView.addView(right, lp(0, MATCH_PARENT, 2f, 0, 8))
-        root.addView(mainView, lp(MATCH_PARENT, 0, 1f))
+        regDone.addView(tv("대기번호", 50f, MUTED, false, true), lp(MATCH_PARENT, WRAP_CONTENT, 0f, 20))
+        regDoneNum = tv("", 220f, GREEN, true, true)
+        regDone.addView(regDoneNum, lp(MATCH_PARENT, WRAP_CONTENT))
+        regDone.addView(tv("등록되었습니다.\n호출될 때까지 잠시만 기다려 주세요.", 40f, Color.WHITE, false, true), lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+        regDone.addView(TextView(this).apply {
+            text = "확인"
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(66f))
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            background = round(Color.parseColor("#2563eb"), 22)
+            isClickable = true
+            setOnClickListener { closeRegister() }
+        }, lp(MATCH_PARENT, px(150f).toInt(), 0f, 24))
+
+        regBox.addView(regForm, lp(MATCH_PARENT, WRAP_CONTENT))
+        regBox.addView(regDone, lp(MATCH_PARENT, WRAP_CONTENT))
+        regView.addView(regBox)
+        root.addView(regView, lp(MATCH_PARENT, 0, 1f))
 
         // 화면 높이에 맞춰 보여 줄 대기 줄 수 계산
         val listH = (h - dp(110)) * 0.6f - px(120f)
@@ -249,6 +342,7 @@ class MainActivity : Activity() {
     private fun showSetup(message: String?) {
         handler.removeCallbacks(ticker)
         mainView.visibility = View.GONE
+        regView.visibility = View.GONE
         setupView.visibility = View.VISIBLE
         connNote.text = ""
         addrInput.setText(prefs.getString("server", "") ?: "")
@@ -258,14 +352,9 @@ class MainActivity : Activity() {
     private fun showMain(b: String) {
         base = b
         setupView.visibility = View.GONE
+        regView.visibility = View.GONE
         mainView.visibility = View.VISIBLE
         addrLabel.text = "서버 $b"
-        qrText.text = "daegi://$b"
-        try {
-            qrView.setImageBitmap(Qr.bitmap("daegi://$b", 900))
-        } catch (e: Exception) {
-            qrText.text = "QR 생성 오류: ${e.message}"
-        }
         handler.removeCallbacks(ticker)
         handler.post(ticker)
     }
@@ -411,46 +500,66 @@ class MainActivity : Activity() {
         countView.text = "대기 ${total}팀 · ${board.optInt("people", 0)}명"
     }
 
-    // ---------------- 대기 등록 (상단 버튼) ----------------
-    private fun registerDialog() {
-        val b = base ?: run { showSetup("먼저 서버에 연결해 주세요."); return }
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), 0)
+    // ---------------- 대기 등록 (큰 화면) ----------------
+    private fun hideKeyboard() {
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(regName.windowToken, 0)
+    }
+
+    private fun openRegister() {
+        if (base == null) {
+            showSetup("먼저 서버에 연결해 주세요.")
+            return
         }
-        val name = EditText(this).apply { hint = "이름"; setSingleLine() }
-        val size = EditText(this).apply {
-            hint = "인원"
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setText("1")
-        }
-        box.addView(name)
-        box.addView(size)
-        AlertDialog.Builder(this)
-            .setTitle("대기 등록")
-            .setView(box)
-            .setPositiveButton("대기표 받기") { _, _ ->
-                val nm = name.text.toString()
-                val sz = size.text.toString().trim().toIntOrNull() ?: 0
-                io.execute {
-                    try {
-                        val r = call(b, JSONObject().put("cmd", "join").put("name", nm).put("size", sz))
-                        runOnUiThread {
-                            val msg = if (r.optBoolean("ok")) "대기번호 ${r.optInt("id")}번이 발급되었습니다."
-                            else r.optString("error", "등록하지 못했습니다")
-                            AlertDialog.Builder(this).setMessage(msg).setPositiveButton("확인", null).show()
-                            poll()
-                        }
-                    } catch (e: Exception) {
-                        runOnUiThread {
-                            AlertDialog.Builder(this).setMessage("서버에 연결하지 못했습니다 (${e.javaClass.simpleName})")
-                                .setPositiveButton("확인", null).show()
-                        }
+        partySize = 1
+        regSizeText.text = "1명"
+        regName.setText("")
+        regMsg.text = ""
+        regForm.visibility = View.VISIBLE
+        regDone.visibility = View.GONE
+        mainView.visibility = View.GONE
+        regView.visibility = View.VISIBLE
+        regName.requestFocus()
+    }
+
+    private fun closeRegister() {
+        hideKeyboard()
+        regView.visibility = View.GONE
+        mainView.visibility = View.VISIBLE
+    }
+
+    private fun submitRegister() {
+        val b = base ?: return
+        val nm = regName.text.toString()
+        val sz = partySize
+        regMsg.text = "등록 중…"
+        io.execute {
+            try {
+                val r = call(b, JSONObject().put("cmd", "join").put("name", nm).put("size", sz))
+                runOnUiThread {
+                    if (r.optBoolean("ok")) {
+                        hideKeyboard()
+                        regDoneNum.text = "${r.optInt("id")}번"
+                        regForm.visibility = View.GONE
+                        regDone.visibility = View.VISIBLE
+                        poll()
+                        // 12초 뒤 자동으로 대기표 화면으로 돌아감
+                        handler.postDelayed({
+                            if (regView.visibility == View.VISIBLE && regDone.visibility == View.VISIBLE) closeRegister()
+                        }, 12000)
+                    } else {
+                        regMsg.text = r.optString("error", "등록하지 못했습니다")
                     }
                 }
+            } catch (e: Exception) {
+                runOnUiThread { regMsg.text = "서버에 연결하지 못했습니다 (${e.javaClass.simpleName})" }
             }
-            .setNegativeButton("취소", null)
-            .show()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (regView.visibility == View.VISIBLE) closeRegister() else super.onBackPressed()
     }
 
     override fun onDestroy() {
