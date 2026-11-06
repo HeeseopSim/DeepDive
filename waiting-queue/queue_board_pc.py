@@ -1,85 +1,25 @@
-"""대기표 + QR (PC용, 창 하나에 한 화면). 파이썬만 있으면 됨 (tkinter 내장, 외부 모듈 없음).
+"""대기표 PC 서버 (TCP 소켓 통신 + 대기표/QR 한 화면).  외부 모듈 없음 (tkinter 내장).
 실행: python queue_board_pc.py
- - 한 창에 현재 호출 번호 / 다음 순서 / 등록 QR 이 같이 나옴 (안드로이드 Daegi-board 앱과 같은 구조)
- - 모바일 앱(Daegi-mobile.apk)에 화면 위 '서버 주소(IP:포트)'를 입력하거나 QR을 스캔하면 연동됨
- - 폰 카메라로 QR을 찍어도 등록 페이지가 열림 (같은 Wi-Fi 또는 이 PC의 핫스팟)
- - K 키: 다음 손님 호출 · N 키: 수동 추가 · F11: 전체화면 · Esc: 전체화면 해제
- - 환경변수: PORT(기본 8080), PUBLIC_URL(QR에 넣을 주소 직접 지정)
- - cloudflared(.exe)가 같은 폴더/PATH에 있으면 인터넷 주소(터널)를 자동으로 만들어 QR에 사용
+ - PC가 TCP 소켓 서버(기본 포트 9000)를 열고, 모바일 앱(Daegi-mobile.apk)이 "IP:포트"로 접속해 연동
+ - 화면 위쪽의 노란 글씨 '서버 주소(IP:포트)'를 모바일 앱에 입력하거나, 화면의 QR을 앱으로 스캔
+ - K: 다음 손님 호출 · N: 수동 추가 · F11: 전체화면 · Esc: 해제 · 목록 항목 클릭: 삭제
+ - 화면 아래에 모바일 접속/등록 로그가 표시됨
+ - 환경변수: PORT (기본 9000)
+통신 규약: 한 줄에 JSON 하나 (UTF-8, 줄바꿈 \\n 으로 끝남), 요청 1개당 응답 1줄.
+  {"cmd":"hello"} / {"cmd":"board"} / {"cmd":"join","name":..,"size":..}
+  {"cmd":"status","id":..} / {"cmd":"cancel","id":..,"token":..}
 """
 import json
 import os
-import re
 import secrets
-import shutil
 import socket
-import subprocess
 import sys
 import threading
 import time
-from urllib.parse import urlparse, parse_qs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PORT = int(os.environ.get("PORT", 8080))
-PUBLIC_URL = os.environ.get("PUBLIC_URL")  # 터널/직접 지정 주소 (없으면 이 PC의 LAN 주소 사용)
+PORT = int(os.environ.get("PORT", 9000))
 ACTUAL_PORT = PORT
-
-JOIN_HTML = r'''<!doctype html>
-<html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>대기 등록</title>
-<style>
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#f3f6fb;color:#1b2430;display:flex;justify-content:center;padding:20px}
-.card{background:#fff;border-radius:16px;box-shadow:0 4px 20px #0001;padding:24px;width:100%;max-width:420px}
-h1{margin:0 0 16px;font-size:22px}label{display:block;margin:14px 0 6px;font-weight:600}
-input{width:100%;padding:14px;font-size:18px;border:1px solid #c8d1de;border-radius:10px}
-.stepper{display:flex;gap:10px;align-items:center}.stepper button{width:52px;height:52px;font-size:24px;border-radius:10px;border:1px solid #c8d1de;background:#fff}
-.stepper input{text-align:center}
-.go{margin-top:22px;width:100%;padding:16px;font-size:18px;font-weight:700;color:#fff;background:#2563eb;border:0;border-radius:12px}
-.err{color:#c0392b;margin-top:10px;min-height:20px}
-.big{font-size:64px;font-weight:800;color:#2563eb;text-align:center;margin:8px 0}
-.sub{text-align:center;color:#556}.now{background:#16a34a;color:#fff;border-radius:12px;padding:16px;text-align:center;font-size:20px;font-weight:700;margin-top:14px}
-.cancel{margin-top:18px;width:100%;padding:12px;border:1px solid #c8d1de;background:#fff;border-radius:10px}
-</style></head><body><div class="card" id="app"></div>
-<script>
-const app=document.getElementById('app');
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let myId=Number(localStorage.getItem('queueId'))||null;
-function form(){
-  app.innerHTML=`<h1>대기 등록</h1>
-  <label>이름</label><input id="name" maxlength="30" placeholder="홍길동" autocomplete="off">
-  <label>인원</label><div class="stepper"><button id="m">−</button><input id="size" type="number" inputmode="numeric" min="1" max="99" value="1"><button id="p">+</button></div>
-  <button class="go" id="go">대기표 받기</button><div class="err" id="err"></div>`;
-  const size=document.getElementById('size');
-  m.onclick=()=>size.value=Math.max(1,Number(size.value)-1);
-  p.onclick=()=>size.value=Math.min(99,Number(size.value)+1);
-  go.onclick=async()=>{
-    const r=await fetch('/api/join',{method:'POST',body:JSON.stringify({name:document.getElementById('name').value,size:document.getElementById('size').value})});
-    const d=await r.json();
-    if(!r.ok){err.textContent=d.error;return}
-    myId=d.id;localStorage.setItem('queueId',myId);localStorage.setItem('queueToken',d.token);track();
-  };
-}
-async function track(){
-  const s=await (await fetch('/api/status?id='+myId)).json();
-  if(!s.waiting){
-    localStorage.removeItem('queueId');localStorage.removeItem('queueToken');
-    app.innerHTML=`<h1>대기 종료</h1><p class="sub">대기표가 완료/취소되었습니다.</p><button class="go" id="again">다시 등록</button>`;
-    again.onclick=()=>{myId=null;form()};return;
-  }
-  const first=s.position===1;
-  app.innerHTML=`<h1>대기표</h1><div class="sub">대기번호</div><div class="big">${s.item.id}</div>
-  <div class="sub">${esc(s.item.name)}님 · ${s.item.size}명</div>
-  ${first?'<div class="now">🔔 곧 입장 차례입니다!</div>':`<div class="now" style="background:#2563eb">내 앞 ${s.teamsAhead}팀 (${s.peopleAhead}명)</div>`}
-  <button class="cancel" id="c">대기 취소</button>`;
-  c.onclick=async()=>{if(!confirm('대기를 취소할까요?'))return;
-    await fetch('/api/remove',{method:'POST',body:JSON.stringify({id:myId,token:localStorage.getItem('queueToken')})});track()};
-  clearTimeout(window.t);window.t=setTimeout(track,3000);
-}
-myId?track():form();
-</script></body></html>
-'''
-
 
 # ---- 내장 QR 생성기 (바이트 모드, 오류정정 L, 버전 1~6 → 최대 134자) ----
 _EXP = [0] * 512
@@ -345,73 +285,6 @@ class WaitingQueue:
                     "lastCalled": self.last_called}
 
 
-def _find_cloudflared():
-    p = os.environ.get("CLOUDFLARED_PATH")
-    if p and os.path.exists(p):
-        return p
-    local = os.path.join(HERE, "cloudflared.exe" if os.name == "nt" else "cloudflared")
-    return shutil.which("cloudflared") or (local if os.path.exists(local) else None)
-
-
-def _download_cloudflared():
-    """Windows 전용: 공식 GitHub 릴리스에서 cloudflared.exe 내려받기 (사용자 동의 후)."""
-    url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
-    dest = os.path.join(HERE, "cloudflared.exe")
-    print("내려받는 중... (약 30MB)")
-    urllib.request.urlretrieve(url, dest)
-    return dest
-
-
-def start_tunnel(port):
-    """cloudflared 터널을 켜고 인터넷 주소를 PUBLIC_URL로 설정."""
-    global PUBLIC_URL, TUNNEL_PENDING
-    if PUBLIC_URL or os.environ.get("NO_TUNNEL"):
-        return
-    exe = _find_cloudflared()
-    if not exe:
-        if os.name != "nt" or not sys.stdin.isatty():
-            print("[터널 없음] cloudflared를 설치하면 같은 Wi-Fi가 아니어도 QR로 접속할 수 있습니다.")
-            return
-        ans = input("인터넷용 주소를 만들려면 cloudflared(무료, Cloudflare 공식)가 필요합니다.\n"
-                    "자동으로 내려받을까요? (y/n): ").strip().lower()
-        if ans != "y":
-            print("터널 없이 실행합니다 (같은 Wi-Fi에서만 접속 가능).")
-            return
-        try:
-            exe = _download_cloudflared()
-        except Exception as e:  # noqa: BLE001
-            print("내려받기 실패:", e)
-            return
-    try:
-        proc = subprocess.Popen([exe, "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                encoding="utf-8", errors="replace")
-    except OSError as e:
-        print("터널 실행 실패:", e)
-        return
-    atexit.register(proc.terminate)
-    TUNNEL_PENDING = True
-
-    def watch():
-        global PUBLIC_URL, TUNNEL_PENDING
-        for line in proc.stdout:
-            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
-            if m and not PUBLIC_URL:
-                PUBLIC_URL = m.group(0)
-                TUNNEL_PENDING = False
-                print(f"\n인터넷 주소 준비 완료: {PUBLIC_URL}")
-                print("관리 화면을 새로고침하면 이 주소로 된 QR이 나옵니다.")
-        TUNNEL_PENDING = False
-        if PUBLIC_URL:
-            print("\n⚠ 터널이 끊겼습니다. 서버를 껐다 다시 켜야 새 인터넷 주소가 만들어집니다.")
-        else:
-            print("터널을 만들지 못했습니다 (인터넷 연결/방화벽 확인). 같은 Wi-Fi에서만 접속됩니다.")
-    threading.Thread(target=watch, daemon=True).start()
-    print("인터넷 주소 만드는 중... (보통 5~10초)")
-
-
-
-
 def mask(name):
     n = list(str(name))
     if len(n) <= 1:
@@ -422,107 +295,75 @@ def mask(name):
 
 
 queue = WaitingQueue(os.path.join(HERE, "data.json"))
-STATUS_TEXT = {200: "OK", 204: "No Content", 400: "Bad Request", 404: "Not Found", 500: "Internal Server Error"}
+EVENTS = []  # (시각, 내용) 최근 접속/등록 로그
 
 
-# ---------------- 소켓 HTTP 서버 (손님 등록 페이지용) ----------------
-def read_request(conn):
-    buf = b""
-    while b"\r\n\r\n" not in buf:
-        chunk = conn.recv(4096)
-        if not chunk:
-            return None
-        buf += chunk
-        if len(buf) > 32768:
-            return None
-    head, _, rest = buf.partition(b"\r\n\r\n")
-    lines = head.decode("latin-1").split("\r\n")
-    try:
-        method, target, _ver = lines[0].split(" ", 2)
-    except ValueError:
-        return None
-    headers = {}
-    for ln in lines[1:]:
-        if ":" in ln:
-            k, v = ln.split(":", 1)
-            headers[k.strip().lower()] = v.strip()
-    n = min(int(headers.get("content-length") or 0), 10000)
-    while len(rest) < n:
-        chunk = conn.recv(4096)
-        if not chunk:
-            break
-        rest += chunk
-    u = urlparse(target)
-    return method.upper(), u.path, parse_qs(u.query), rest[:n]
+def log_event(text):
+    EVENTS.append((time.strftime("%H:%M:%S"), text))
+    del EVENTS[:-50]
 
 
-def respond(conn, code, body, ctype="application/json; charset=utf-8"):
-    if isinstance(body, str):
-        body = body.encode("utf-8")
-    elif not isinstance(body, bytes):
-        body = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    head = (f"HTTP/1.1 {code} {STATUS_TEXT.get(code, 'OK')}\r\n"
-            f"Content-Type: {ctype}\r\nContent-Length: {len(body)}\r\n"
-            "Cache-Control: no-store\r\nConnection: close\r\n\r\n")
-    conn.sendall(head.encode("latin-1") + body)
-
-
-def handle(method, path, query, body):
-    J = "application/json; charset=utf-8"
-    if method == "GET":
-        if path in ("/", "/join"):
-            return 200, JOIN_HTML, "text/html; charset=utf-8"
-        if path == "/api/ping":
-            return 200, {"ok": True, "app": "waiting-queue"}, J
-        if path == "/api/board":
-            snap = queue.snapshot()
-            items = snap["items"]
-            view = lambda x: {"id": x["id"], "name": mask(x["name"]), "size": x["size"]}
-            return 200, {"current": view(items[0]) if items else None,
-                         "next": [view(x) for x in items[1:6]],
-                         "more": max(0, len(items) - 6), "count": len(items),
-                         "people": snap["totalPeople"]}, J
-        if path == "/api/status":
-            try:
-                id = int(query.get("id", ["0"])[0])
-            except ValueError:
-                id = 0
-            return 200, queue.status(id), J
-        if path == "/favicon.ico":
-            return 204, b"", "text/plain"
-        return 404, b"Not found", "text/plain"
-    if method == "POST":
+# ---------------- TCP 소켓 서버 (줄 단위 JSON) ----------------
+def handle_msg(req, peer):
+    cmd = req.get("cmd")
+    if cmd == "hello":
+        log_event(f"📱 {peer} 연결됨")
+        return {"ok": True, "app": "waiting-queue", "ver": 1}
+    if cmd == "board":
+        snap = queue.snapshot()
+        items = snap["items"]
+        view = lambda x: {"id": x["id"], "name": mask(x["name"]), "size": x["size"]}
+        return {"ok": True, "current": view(items[0]) if items else None,
+                "next": [view(x) for x in items[1:6]], "more": max(0, len(items) - 6),
+                "count": len(items), "people": snap["totalPeople"]}
+    if cmd == "join":
         try:
-            b = json.loads(body or b"{}")
-            b = b if isinstance(b, dict) else {}
-        except ValueError:
-            b = {}
-        if path == "/api/join":
-            try:
-                return 200, queue.add(b.get("name"), b.get("size")), J
-            except ValueError as e:
-                return 400, {"error": str(e)}, J
-        if path == "/api/remove":  # 손님 본인 취소 (토큰 필요)
-            try:
-                id = int(b.get("id"))
-            except (TypeError, ValueError):
-                id = 0
-            return 200, {"ok": queue.remove(id, token=b.get("token"), admin=False)}, J
-    return 404, {"error": "not found"}, J
+            item = queue.add(req.get("name"), req.get("size"))
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
+        log_event(f"📱 {peer} 대기 등록: {item['id']}번 {mask(item['name'])} {item['size']}명")
+        return {"ok": True, **item}
+    if cmd == "status":
+        try:
+            id = int(req.get("id", 0))
+        except (TypeError, ValueError):
+            id = 0
+        return {"ok": True, **queue.status(id)}
+    if cmd == "cancel":
+        try:
+            id = int(req.get("id", 0))
+        except (TypeError, ValueError):
+            id = 0
+        ok = queue.remove(id, token=req.get("token"), admin=False)
+        if ok:
+            log_event(f"📱 {peer} 대기 취소: {id}번")
+        return {"ok": ok}
+    return {"ok": False, "error": "알 수 없는 명령"}
 
 
-def serve_conn(conn):
+def serve_conn(conn, addr):
     try:
         conn.settimeout(10)
-        req = read_request(conn)
-        if not req:
+        buf = b""
+        while b"\n" not in buf:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+            if len(buf) > 8192:
+                return
+        line = buf.split(b"\n", 1)[0].strip()
+        if not line:
             return
         try:
-            code, out, ctype = handle(*req)
+            req = json.loads(line.decode("utf-8"))
+            resp = handle_msg(req if isinstance(req, dict) else {}, addr[0])
+        except ValueError:
+            resp = {"ok": False, "error": "잘못된 요청"}
         except Exception as e:  # noqa: BLE001
             print("처리 오류:", repr(e))
-            code, out, ctype = 500, {"error": "서버 오류"}, "application/json; charset=utf-8"
-        respond(conn, code, out, ctype)
+            resp = {"ok": False, "error": "서버 오류"}
+        conn.sendall((json.dumps(resp, ensure_ascii=False) + "\n").encode("utf-8"))
     except OSError:
         pass
     finally:
@@ -557,15 +398,15 @@ def make_listener(port):
 def accept_loop(sock):
     while True:
         try:
-            conn, _addr = sock.accept()
+            conn, addr = sock.accept()
         except OSError:
             return
-        threading.Thread(target=serve_conn, args=(conn,), daemon=True).start()
+        threading.Thread(target=serve_conn, args=(conn, addr), daemon=True).start()
 
 
 # ---------------- 이 PC의 접속 주소 ----------------
 def local_ips():
-    """손님 폰이 접속할 수 있는 이 PC의 IPv4 주소 후보들 (핫스팟/Wi-Fi/랜)."""
+    """모바일이 접속할 수 있는 이 PC의 IPv4 주소 후보들 (핫스팟/Wi-Fi/랜)."""
     ips = []
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -584,33 +425,6 @@ def local_ips():
         if ip and not ip.startswith("127.") and not ip.startswith("169.254.") and ip not in out:
             out.append(ip)
     return out or ["127.0.0.1"]
-
-
-# ---------------- 선택: cloudflared 터널 ----------------
-TUNNEL_URL = None
-
-
-def start_tunnel(port):
-    """cloudflared 가 같은 폴더/PATH 에 있을 때만 터널을 켜서 인터넷 주소를 만든다."""
-    global TUNNEL_URL
-    exe = shutil.which("cloudflared") or next(
-        (p for p in (os.path.join(HERE, "cloudflared.exe"), os.path.join(HERE, "cloudflared")) if os.path.exists(p)), None)
-    if not exe or PUBLIC_URL:
-        return
-    try:
-        proc = subprocess.Popen([exe, "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                encoding="utf-8", errors="replace")
-    except OSError:
-        return
-
-    def watch():
-        global TUNNEL_URL
-        for line in proc.stdout:
-            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
-            if m and not TUNNEL_URL:
-                TUNNEL_URL = m.group(0)
-    threading.Thread(target=watch, daemon=True).start()
 
 
 # ---------------- 화면 (tkinter) ----------------
@@ -649,8 +463,9 @@ class App:
                   bg="white", fg="#0f172a", relief="flat").pack(side="left", padx=12, pady=10, ipadx=14, ipady=8)
         tk.Button(bottom, text="＋ 추가 (N)", command=self.add_dialog, font=("Malgun Gothic", 13),
                   bg=GRAY, fg=TEXT, relief="flat").pack(side="left", padx=4, pady=10, ipadx=10, ipady=8)
-        tk.Label(bottom, text="F11 전체화면 · 목록 항목을 클릭하면 삭제", fg=MUTED, bg=PANEL,
-                 font=("Malgun Gothic", 10)).pack(side="right", padx=14)
+        self.evt = tk.Label(bottom, text="모바일 접속 대기 중… (F11 전체화면 · 목록 항목 클릭: 삭제)", fg=MUTED, bg=PANEL,
+                            font=("Malgun Gothic", 11), anchor="e", justify="right")
+        self.evt.pack(side="right", padx=14)
 
         main = tk.Frame(root, bg=BG)
         main.pack(fill="both", expand=True, padx=14, pady=12)
@@ -679,7 +494,7 @@ class App:
 
         right = tk.Frame(main, bg=PANEL)
         right.grid(row=0, column=1, sticky="nsew")
-        tk.Label(right, text="📱 QR을 찍어 대기 등록", font=("Malgun Gothic", 18, "bold"), fg="white", bg=PANEL).pack(pady=(16, 8))
+        tk.Label(right, text="📱 앱으로 QR을 스캔해 연결", font=("Malgun Gothic", 18, "bold"), fg="white", bg=PANEL).pack(pady=(16, 8))
         self.qr_canvas = tk.Canvas(right, bg="white", highlightthickness=0)
         self.qr_canvas.pack(fill="both", expand=True, padx=18, pady=4)
         self.qr_canvas.bind("<Configure>", lambda e: self.draw_qr())
@@ -740,13 +555,11 @@ class App:
 
     # --- 그리기 ---
     def join_url(self):
-        if PUBLIC_URL:
-            return PUBLIC_URL.rstrip("/") + "/join", "직접 지정"
-        if TUNNEL_URL:
-            return TUNNEL_URL + "/join", "인터넷 주소 (같은 Wi-Fi 아니어도 OK)"
+        """(QR에 넣을 문자열, 안내 문구, 서버 주소 IP:포트)"""
         ips = local_ips()
         ip = ips[self.ip_index % len(ips)]
-        return f"http://{ip}:{self.port}/join", f"모바일 앱에 입력 · 주소 {self.ip_index % len(ips) + 1}/{len(ips)}"
+        addr = f"{ip}:{self.port}"
+        return f"daegi://{addr}", f"모바일 앱에 입력 · 주소 {self.ip_index % len(ips) + 1}/{len(ips)}", addr
 
     def draw_qr(self):
         c = self.qr_canvas
@@ -809,9 +622,12 @@ class App:
         self.more.configure(text="다음 대기가 없습니다" if n <= 1 else (f"외 {rest}팀 대기 중" if rest > 0 else ""))
         self.count.configure(text=f"대기 {n}팀 · {snap['totalPeople']}명")
 
-        url, how = self.join_url()
+        url, how, addr = self.join_url()
         self.hint.configure(text=how)
-        self.addr.configure(text="📡 " + (url.split("//", 1)[1].rsplit("/join", 1)[0]))
+        self.addr.configure(text="📡 " + addr)
+        if EVENTS:
+            t, x = EVENTS[-1]
+            self.evt.configure(text=f"[{t}] {x}")
         if url != self.url_var.get():
             self.url_var.set(url)
             self.draw_qr()
@@ -826,8 +642,8 @@ def main():
     except OSError as e:
         sys.exit(f"서버를 시작하지 못했습니다: {e}")
     threading.Thread(target=accept_loop, args=(sock,), daemon=True).start()
-    start_tunnel(ACTUAL_PORT)
-    print(f"등록 서버 실행 중: 포트 {ACTUAL_PORT}  (손님 등록 주소: http://{local_ips()[0]}:{ACTUAL_PORT}/join)")
+    ips = local_ips()
+    print(f"소켓 서버 실행 중: 모바일 앱에 입력할 주소 → {ips[0]}:{ACTUAL_PORT}  (다른 후보: {', '.join(ips[1:]) or '없음'})")
     root = tk.Tk()
     App(root, ACTUAL_PORT)
     root.mainloop()

@@ -6,7 +6,6 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -110,7 +109,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(buildUi())
-        val saved = prefs.getString("server", null)
+        val saved = prefs.getString("server", null)?.let { normalize(it) }
         if (saved != null) showMain(saved) else showSetup(null)
     }
 
@@ -151,7 +150,7 @@ class MainActivity : Activity() {
             text = "QR 스캔으로 연결"
             setOnClickListener { scan() }
         }, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 18))
-        addrInput = input("예: 192.168.0.10:8080").apply {
+        addrInput = input("예: 192.168.0.10:9000").apply {
             imeOptions = EditorInfo.IME_ACTION_GO
             setOnEditorActionListener { _, _, _ -> tryConnect(text.toString()); true }
         }
@@ -243,7 +242,7 @@ class MainActivity : Activity() {
         mainView.visibility = View.GONE
         setupView.visibility = View.VISIBLE
         connNote.text = ""
-        addrInput.setText(prefs.getString("server", "")?.removePrefix("http://") ?: "")
+        addrInput.setText(prefs.getString("server", "") ?: "")
         setupMsg.text = message ?: ""
     }
 
@@ -252,7 +251,7 @@ class MainActivity : Activity() {
         notifiedTurn = false
         setupView.visibility = View.GONE
         mainView.visibility = View.VISIBLE
-        addrLabel.text = "서버 " + b.removePrefix("http://")
+        addrLabel.text = "서버 $b"
         handler.removeCallbacks(ticker)
         handler.post(ticker)
     }
@@ -270,39 +269,45 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
-    // ---------------- 서버 연결 ----------------
-    /** "192.168.0.10:8080", "http://.../join" 등을 "http://host:port" 로 정리. */
+    // ---------------- 서버 연결 (TCP 소켓) ----------------
+    private val defaultPort = 9000
+
+    /** "192.168.0.10:9000", "daegi://192.168.0.10:9000" 등을 "host:port" 로 정리. */
     private fun normalize(raw: String): String? {
         var s = raw.trim()
         if (s.isEmpty()) return null
-        if (!s.startsWith("http://") && !s.startsWith("https://")) s = "http://$s"
-        val u = Uri.parse(s)
-        val host = u.host ?: return null
-        val port = if (u.port != -1) ":${u.port}" else ""
-        return "${u.scheme}://$host$port"
+        s = s.substringAfter("://").substringBefore("/").trim()
+        if (s.isEmpty()) return null
+        val host = s.substringBefore(":")
+        val port = if (s.contains(":")) s.substringAfter(":").toIntOrNull() else defaultPort
+        if (host.isEmpty() || port == null || port !in 1..65535) return null
+        return "$host:$port"
     }
+
+    private fun call(b: String, req: JSONObject): JSONObject =
+        Sock.call(b.substringBefore(":"), b.substringAfter(":").toInt(), req)
 
     private fun tryConnect(raw: String) {
         val b = normalize(raw)
         if (b == null) {
-            setupMsg.text = "주소를 확인해 주세요. 예: 192.168.0.10:8080"
+            setupMsg.text = "주소를 확인해 주세요. 예: 192.168.0.10:9000"
             return
         }
         setupMsg.text = "연결 확인 중… ($b)"
         io.execute {
             try {
-                val (code, json) = Http.request(b, "GET", "/api/ping")
-                if (code == 200 && json.optBoolean("ok")) {
+                val r = call(b, JSONObject().put("cmd", "hello"))
+                if (r.optBoolean("ok") && r.optString("app") == "waiting-queue") {
                     runOnUiThread {
                         prefs.edit().putString("server", b).apply()
                         showMain(b)
                     }
                 } else {
-                    runOnUiThread { setupMsg.text = "이 주소는 대기표 서버가 아닙니다 (응답 $code). PC 화면의 주소와 같은지 확인하세요." }
+                    runOnUiThread { setupMsg.text = "이 주소는 대기표 서버가 아닙니다. PC 화면의 주소(IP:포트)와 같은지 확인하세요." }
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    setupMsg.text = "서버에 연결하지 못했습니다 (${e.javaClass.simpleName}).\n" +
+                    setupMsg.text = "서버에 연결하지 못했습니다 (${e.javaClass.simpleName}: ${e.message}).\n" +
                         "① PC에서 프로그램이 켜져 있는지 ② 폰과 PC가 같은 Wi-Fi인지 ③ 입력한 IP:포트가 PC 화면의 주소와 같은지 확인해 주세요."
                 }
             }
@@ -315,7 +320,7 @@ class MainActivity : Activity() {
                 .addOnSuccessListener { b ->
                     val raw = b.rawValue
                     if (raw != null) {
-                        addrInput.setText(raw.removePrefix("http://"))
+                        addrInput.setText(raw.substringAfter("://"))
                         tryConnect(raw)
                     } else {
                         setupMsg.text = "QR에서 주소를 읽지 못했습니다."
@@ -334,10 +339,10 @@ class MainActivity : Activity() {
         val b = base ?: return
         io.execute {
             try {
-                val (code, board) = Http.request(b, "GET", "/api/board")
-                if (code != 200) throw RuntimeException("HTTP $code")
+                val board = call(b, JSONObject().put("cmd", "board"))
+                if (!board.optBoolean("ok")) throw RuntimeException(board.optString("error", "응답 오류"))
                 val tid = prefs.getInt("ticketId", 0)
-                val st = if (tid > 0) Http.request(b, "GET", "/api/status?id=$tid").second else null
+                val st = if (tid > 0) call(b, JSONObject().put("cmd", "status").put("id", tid)) else null
                 runOnUiThread {
                     connNote.text = ""
                     showBoard(board)
@@ -430,16 +435,16 @@ class MainActivity : Activity() {
         regMsg.text = "등록 중…"
         io.execute {
             try {
-                val (code, json) = Http.request(b, "POST", "/api/join", JSONObject().put("name", name).put("size", size))
+                val json = call(b, JSONObject().put("cmd", "join").put("name", name).put("size", size))
                 runOnUiThread {
-                    if (code == 200) {
+                    if (json.optBoolean("ok")) {
                         prefs.edit().putInt("ticketId", json.optInt("id")).putString("ticketToken", json.optString("token")).apply()
                         notifiedTurn = false
                         regMsg.text = ""
                         nameInput.setText("")
                         poll()
                     } else {
-                        regMsg.text = json.optString("error", "등록하지 못했습니다 (응답 $code)")
+                        regMsg.text = json.optString("error", "등록하지 못했습니다")
                     }
                 }
             } catch (e: Exception) {
@@ -463,7 +468,7 @@ class MainActivity : Activity() {
         val tok = prefs.getString("ticketToken", "") ?: ""
         io.execute {
             try {
-                Http.request(b, "POST", "/api/remove", JSONObject().put("id", id).put("token", tok))
+                call(b, JSONObject().put("cmd", "cancel").put("id", id).put("token", tok))
             } catch (e: Exception) { /* 다음 갱신에서 상태 확인 */ }
             runOnUiThread {
                 prefs.edit().remove("ticketId").remove("ticketToken").apply()
