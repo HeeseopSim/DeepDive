@@ -4,7 +4,9 @@
 
 ## 실행
 ```
-cd waiting-queue && npm install && npm start
+cd waiting-queue
+pip install -r requirements.txt
+python app.py
 ```
 - 관리 화면(직원용): `http://localhost:3000/` — QR 코드 표시, 대기 목록, 직접 추가
 - 손님 등록 페이지: `/join` (QR 코드가 이 주소로 연결)
@@ -13,7 +15,7 @@ cd waiting-queue && npm install && npm start
 ## 휴대폰 접속용 주소
 QR이 손님 휴대폰에서 열리려면 외부에서 접근 가능한 주소가 필요합니다.
 ```
-PUBLIC_URL=http://192.168.0.10:3000 npm start
+PUBLIC_URL=http://192.168.0.10:3000 python app.py   # 포트는 PORT 환경변수로 변경
 ```
 (같은 와이파이의 PC IP 또는 배포 주소). 미설정 시 접속한 호스트 주소를 사용합니다.
 
@@ -21,3 +23,8 @@ PUBLIC_URL=http://192.168.0.10:3000 npm start
 - 손님: 이름 + 인원 입력 → 대기번호 발급, 내 앞 팀/인원 실시간 확인, 대기 취소
 - 직원: K키/완료 버튼으로 호출, 개별 삭제, 현장 접수 추가
 - 대기 데이터는 `data.json`에 저장되어 서버 재시작에도 유지
+
+## 테스트
+```
+python -m unittest
+```

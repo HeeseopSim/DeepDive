@@ -1,9 +1,0 @@
-{
-  "name": "waiting-queue",
-  "version": "1.0.0",
-  "private": true,
-  "description": "QR 코드 대기표 시스템",
-  "main": "server.js",
-  "scripts": { "start": "node server.js", "test": "node --test" },
-  "dependencies": { "qrcode": "^1.5.4" }
-}

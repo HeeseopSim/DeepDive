@@ -17,6 +17,7 @@ input{width:100%;padding:14px;font-size:18px;border:1px solid #c8d1de;border-rad
 </style></head><body><div class="card" id="app"></div>
 <script>
 const app=document.getElementById('app');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let myId=Number(localStorage.getItem('queueId'))||null;
 function form(){
   app.innerHTML=`<h1>대기 등록</h1>
@@ -42,7 +43,7 @@ async function track(){
   }
   const first=s.position===1;
   app.innerHTML=`<h1>대기표</h1><div class="sub">대기번호</div><div class="big">${s.item.id}</div>
-  <div class="sub">${s.item.name}님 · ${s.item.size}명</div>
+  <div class="sub">${esc(s.item.name)}님 · ${s.item.size}명</div>
   ${first?'<div class="now">🔔 곧 입장 차례입니다!</div>':`<div class="now" style="background:#2563eb">내 앞 ${s.teamsAhead}팀 (${s.peopleAhead}명)</div>`}
   <button class="cancel" id="c">대기 취소</button>`;
   c.onclick=async()=>{if(!confirm('대기를 취소할까요?'))return;
