@@ -1,9 +1,8 @@
-"""QR 대기표 (단일 파일).
-설치 필요 없음 (파이썬만 있으면 됨, QR 생성기 내장)
-실행: python queue_app.py
- - 시작하면 인터넷 주소(무료 Cloudflare 터널)를 자동으로 만들고 그 주소로 QR 생성
-   → 손님은 같은 Wi-Fi가 아니어도 폰 카메라로 QR만 찍으면 등록됨
- - 환경변수: PORT, PUBLIC_URL(직접 주소 지정), NO_TUNNEL=1(터널 끄기)
+"""QR 대기표 서버 (파이썬 소켓 직접 구현, 외부 모듈 없음).
+실행: python queue_server.py
+ - 브라우저가 자동으로 열리고, 시작하면 인터넷 주소(무료 Cloudflare 터널)를 만들어 QR에 넣음
+   → 손님은 같은 Wi-Fi가 아니어도 폰 카메라로 QR을 찍으면 대기 등록
+ - 환경변수: PORT(기본 3000), PUBLIC_URL(주소 직접 지정), NO_TUNNEL=1, NO_BROWSER=1
 관리 화면(PC에서만): /   손님 등록: /join   K키 = 맨 위 사람 삭제
 """
 import atexit
@@ -12,19 +11,19 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import threading
 import time
 import urllib.request
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import webbrowser
 from urllib.parse import urlparse, parse_qs
-
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("PORT", 3000))
 PUBLIC_URL = os.environ.get("PUBLIC_URL")
-BUILD_ID = "v4-" + time.strftime("%m%d%H%M")
+BUILD_ID = "socket-v1"
 TUNNEL_PENDING = False
 
 ADMIN_HTML = r'''<!doctype html>
@@ -44,7 +43,7 @@ h2{margin:0 0 12px}.now{background:#16a34a;border-radius:14px;padding:20px;margi
 button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;font-size:15px;font-weight:600}
 .done{background:#fff;color:#0f172a;width:100%;padding:16px;font-size:18px;margin-bottom:14px}
 .x{background:#334155;color:#e2e8f0}
-.qr{background:#fff;border-radius:12px;padding:8px}.qr img{width:100%;display:block}
+.qr{background:#fff;border-radius:12px;padding:8px}.qr svg{width:100%;height:auto;display:block}
 .url{word-break:break-all;font-size:12px;color:#94a3b8;margin-top:8px}
 .add{display:flex;gap:8px;margin-top:16px}.add input{padding:10px;border-radius:8px;border:0;font-size:15px}
 .add input[name=size]{width:70px}.add input[name=name]{flex:1;min-width:0}.add button{background:#2563eb;color:#fff}
@@ -59,7 +58,7 @@ kbd{background:#334155;border-radius:6px;padding:2px 8px;font-weight:700}
   <form class="add" id="addf"><input name="name" placeholder="이름 (직접 추가)" maxlength="30"><input name="size" type="number" min="1" max="99" value="1"><button>추가</button></form>
 </div>
 <div class="panel"><h2>QR로 대기 등록</h2>
-  <div class="qr"><img id="qr" alt="QR" style="display:none"></div>
+  <div class="qr" id="qrbox"><div style="color:#334155;padding:40px 0;text-align:center">QR 만드는 중…</div></div>
   <div id="qrmsg" style="margin:10px 0;font-weight:700"></div>
   <div class="url" id="url" style="font-size:15px;color:#e2e8f0"></div>
   <div style="margin-top:14px;font-size:11px;color:#64748b">build BUILD_ID</div></div>
@@ -85,16 +84,13 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==='k'||e.key==='K'||e.key==='ㅏ'){e.preventDefault();complete()}
 });
-let lastUrl=null,qrFail=0;
-const qr=$('qr');
-qr.onload=()=>{qr.style.display='block';qrFail=0};
-qr.onerror=()=>{qr.style.display='none';qrFail++;$('qrmsg').textContent='⚠ QR 이미지를 불러오지 못했습니다 (아래 주소를 직접 사용하세요)'};
+let lastUrl=null;
 async function refreshQR(){
   try{
     const d=await (await fetch('/api/info')).json();
-    if(d.joinUrl!==lastUrl||qrFail){lastUrl=d.joinUrl;qr.src='/qr.svg?u='+encodeURIComponent(d.joinUrl)+'&t='+Date.now()}
+    if(d.joinUrl!==lastUrl){lastUrl=d.joinUrl;$('qrbox').innerHTML=d.svg}
     $('url').textContent=d.joinUrl;
-    if(!qrFail)$('qrmsg').textContent=d.tunnel?'🌐 인터넷 주소 · 같은 Wi-Fi가 아니어도 접속됩니다':(d.pending?'⏳ 인터넷 주소 만드는 중… QR이 곧 바뀝니다':'⚠ 이 PC와 같은 Wi-Fi에서만 접속됩니다');
+    $('qrmsg').textContent=d.tunnel?'🌐 인터넷 주소 · 같은 Wi-Fi가 아니어도 접속됩니다':(d.pending?'⏳ 인터넷 주소 만드는 중… QR이 곧 바뀝니다':'⚠ 이 PC와 같은 Wi-Fi에서만 접속됩니다');
   }catch(e){$('qrmsg').textContent='⚠ 서버와 연결이 끊겼습니다 (서버 창이 꺼졌는지 확인)'}
 }
 refreshQR();setInterval(refreshQR,3000);
@@ -132,7 +128,7 @@ function form(){
   m.onclick=()=>size.value=Math.max(1,Number(size.value)-1);
   p.onclick=()=>size.value=Math.min(99,Number(size.value)+1);
   go.onclick=async()=>{
-    const r=await fetch('/api/join',{method:'POST',body:JSON.stringify({name:name.value,size:size.value})});
+    const r=await fetch('/api/join',{method:'POST',body:JSON.stringify({name:document.getElementById('name').value,size:document.getElementById('size').value})});
     const d=await r.json();
     if(!r.ok){err.textContent=d.error;return}
     myId=d.id;localStorage.setItem('queueId',myId);localStorage.setItem('queueToken',d.token);track();
@@ -423,98 +419,6 @@ class WaitingQueue:
                     "lastCalled": self.last_called}
 
 
-queue = WaitingQueue(os.path.join(HERE, "data.json"))
-PAGES = {"/": ADMIN_HTML.replace("BUILD_ID", BUILD_ID), "/admin": ADMIN_HTML.replace("BUILD_ID", BUILD_ID), "/join": JOIN_HTML}
-
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *a):
-        pass
-
-    def _send(self, code, body, ctype="application/json; charset=utf-8"):
-        if not isinstance(body, bytes):
-            body = json.dumps(body, ensure_ascii=False).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _body(self):
-        n = min(int(self.headers.get("Content-Length") or 0), 10000)
-        try:
-            return json.loads(self.rfile.read(n) or b"{}")
-        except ValueError:
-            return {}
-
-    def _is_local(self):
-        """PC 자신에서 온 요청만 True (터널/다른 기기 경유는 False)."""
-        if self.client_address[0] not in ("127.0.0.1", "::1"):
-            return False
-        return not any(self.headers.get(h) for h in
-                       ("Cf-Connecting-Ip", "X-Forwarded-For", "Forwarded", "X-Real-Ip"))
-
-    def _base(self):
-        if PUBLIC_URL:
-            return PUBLIC_URL.rstrip("/")
-        proto = self.headers.get("X-Forwarded-Proto") or "http"
-        return f"{proto}://{self.headers.get('Host')}"
-
-    def _deny(self):
-        self._send(403, {"error": "관리 기능은 서버 PC에서만 사용할 수 있습니다"})
-
-    def do_GET(self):
-        u = urlparse(self.path)
-        p = u.path
-        if p in ("/", "/admin", "/api/queue", "/api/info", "/qr.svg") and not self._is_local():
-            return self._deny()
-        if p == "/api/queue":
-            return self._send(200, queue.snapshot())
-        if p == "/api/status":
-            try:
-                id = int(parse_qs(u.query).get("id", ["0"])[0])
-            except ValueError:
-                id = 0
-            return self._send(200, queue.status(id))
-        if p == "/api/info":
-            return self._send(200, {"joinUrl": self._base() + "/join",
-                                    "tunnel": bool(PUBLIC_URL) and "trycloudflare.com" in PUBLIC_URL,
-                                    "pending": TUNNEL_PENDING})
-        if p == "/qr.svg":
-            try:
-                svg = make_qr_svg(self._base() + "/join", scale=10, border=2)
-            except Exception as e:  # noqa: BLE001
-                print("QR 생성 오류:", e)
-                return self._send(500, str(e).encode(), "text/plain; charset=utf-8")
-            return self._send(200, svg.encode(), "image/svg+xml")
-        if p in PAGES:
-            return self._send(200, PAGES[p].encode(), "text/html; charset=utf-8")
-        self._send(404, b"Not found", "text/plain")
-
-    def do_POST(self):
-        p = urlparse(self.path).path
-        if p == "/api/complete" and not self._is_local():
-            return self._deny()
-        if p == "/api/join":
-            b = self._body()
-            try:
-                return self._send(200, queue.add(b.get("name"), b.get("size")))
-            except ValueError as e:
-                return self._send(400, {"error": str(e)})
-        if p == "/api/complete":
-            return self._send(200, {"done": queue.complete()})
-        if p == "/api/remove":
-            b = self._body()
-            try:
-                id = int(b.get("id"))
-            except (TypeError, ValueError):
-                id = 0
-            return self._send(200, {"ok": queue.remove(
-                id, token=b.get("token"), admin=self._is_local())})
-        self._send(404, {"error": "not found"})
-
-
 def _find_cloudflared():
     p = os.environ.get("CLOUDFLARED_PATH")
     if p and os.path.exists(p):
@@ -580,11 +484,187 @@ def start_tunnel(port):
     print("인터넷 주소 만드는 중... (보통 5~10초)")
 
 
-if __name__ == "__main__":
+
+queue = WaitingQueue(os.path.join(HERE, "data.json"))
+ADMIN_PAGE = ADMIN_HTML.replace("BUILD_ID", BUILD_ID)
+STATUS_TEXT = {200: "OK", 204: "No Content", 400: "Bad Request", 403: "Forbidden",
+               404: "Not Found", 405: "Method Not Allowed", 500: "Internal Server Error"}
+ACTUAL_PORT = PORT
+
+
+# ---------------- 소켓 HTTP 서버 ----------------
+def read_request(conn):
+    """요청 한 개를 읽어 (method, path, query, headers, body) 반환. 실패 시 None."""
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        chunk = conn.recv(4096)
+        if not chunk:
+            return None
+        buf += chunk
+        if len(buf) > 32768:
+            return None
+    head, _, rest = buf.partition(b"\r\n\r\n")
+    lines = head.decode("latin-1").split("\r\n")
     try:
-        httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    except OSError as e:
-        sys.exit(f"포트 {PORT}를 쓸 수 없습니다: {e}\n→ 이전에 켜 둔 서버 창을 모두 닫고 다시 실행하세요.")
-    print(f"대기표 서버 실행 [{BUILD_ID}]: http://localhost:{PORT}  (관리 화면은 이 PC에서만)")
-    start_tunnel(PORT)
-    httpd.serve_forever()
+        method, target, _ver = lines[0].split(" ", 2)
+    except ValueError:
+        return None
+    headers = {}
+    for ln in lines[1:]:
+        if ":" in ln:
+            k, v = ln.split(":", 1)
+            headers[k.strip().lower()] = v.strip()
+    n = min(int(headers.get("content-length") or 0), 10000)
+    while len(rest) < n:
+        chunk = conn.recv(4096)
+        if not chunk:
+            break
+        rest += chunk
+    u = urlparse(target)
+    return method.upper(), u.path, parse_qs(u.query), headers, rest[:n]
+
+
+def respond(conn, code, body, ctype="application/json; charset=utf-8"):
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    elif not isinstance(body, bytes):
+        body = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    head = (f"HTTP/1.1 {code} {STATUS_TEXT.get(code, 'OK')}\r\n"
+            f"Content-Type: {ctype}\r\nContent-Length: {len(body)}\r\n"
+            "Cache-Control: no-store\r\nConnection: close\r\n\r\n")
+    conn.sendall(head.encode("latin-1") + body)
+
+
+def is_local(peer_ip, headers):
+    """PC 자신에서 온 요청만 True (터널/다른 기기 경유는 False)."""
+    ip = peer_ip.replace("::ffff:", "")
+    if ip not in ("127.0.0.1", "::1"):
+        return False
+    return not any(h in headers for h in ("cf-connecting-ip", "x-forwarded-for", "forwarded", "x-real-ip"))
+
+
+def base_url(headers):
+    if PUBLIC_URL:
+        return PUBLIC_URL.rstrip("/")
+    proto = headers.get("x-forwarded-proto") or "http"
+    return f"{proto}://{headers.get('host') or 'localhost:' + str(ACTUAL_PORT)}"
+
+
+def json_body(body):
+    try:
+        d = json.loads(body or b"{}")
+        return d if isinstance(d, dict) else {}
+    except ValueError:
+        return {}
+
+
+def handle(method, path, query, headers, body, local):
+    """라우팅. (상태코드, 본문, 타입) 반환."""
+    J = "application/json; charset=utf-8"
+    H = "text/html; charset=utf-8"
+    admin_only = path in ("/", "/admin", "/api/queue", "/api/info", "/api/complete")
+    if admin_only and not local:
+        return 403, {"error": "관리 기능은 서버 PC에서만 사용할 수 있습니다"}, J
+    if method == "GET":
+        if path in ("/", "/admin"):
+            return 200, ADMIN_PAGE, H
+        if path == "/join":
+            return 200, JOIN_HTML, H
+        if path == "/api/queue":
+            return 200, queue.snapshot(), J
+        if path == "/api/status":
+            try:
+                id = int(query.get("id", ["0"])[0])
+            except ValueError:
+                id = 0
+            return 200, queue.status(id), J
+        if path == "/api/info":
+            url = base_url(headers) + "/join"
+            return 200, {"joinUrl": url, "svg": make_qr_svg(url, scale=10, border=2),
+                         "tunnel": bool(PUBLIC_URL) and "trycloudflare.com" in PUBLIC_URL,
+                         "pending": TUNNEL_PENDING}, J
+        if path == "/favicon.ico":
+            return 204, b"", "text/plain"
+        return 404, b"Not found", "text/plain"
+    if method == "POST":
+        b = json_body(body)
+        if path == "/api/join":
+            try:
+                return 200, queue.add(b.get("name"), b.get("size")), J
+            except ValueError as e:
+                return 400, {"error": str(e)}, J
+        if path == "/api/complete":
+            return 200, {"done": queue.complete()}, J
+        if path == "/api/remove":
+            try:
+                id = int(b.get("id"))
+            except (TypeError, ValueError):
+                id = 0
+            return 200, {"ok": queue.remove(id, token=b.get("token"), admin=local)}, J
+    return 404, {"error": "not found"}, J
+
+
+def serve_conn(conn, addr):
+    try:
+        conn.settimeout(10)
+        req = read_request(conn)
+        if not req:
+            return
+        method, path, query, headers, body = req
+        try:
+            code, out, ctype = handle(method, path, query, headers, body, is_local(addr[0], headers))
+        except Exception as e:  # noqa: BLE001
+            print("처리 오류:", repr(e))
+            code, out, ctype = 500, {"error": "서버 오류"}, "application/json; charset=utf-8"
+        respond(conn, code, out, ctype)
+    except OSError:
+        pass
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def make_listener(port):
+    """듀얼스택(IPv4+IPv6) 소켓 생성. 포트가 사용 중이면 다음 포트로."""
+    for p in range(port, port + 20):
+        for fam in (socket.AF_INET6, socket.AF_INET):
+            s = None
+            try:
+                s = socket.socket(fam, socket.SOCK_STREAM)
+                if os.name != "nt":
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if fam == socket.AF_INET6:
+                    s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                    s.bind(("::", p))
+                else:
+                    s.bind(("0.0.0.0", p))
+                s.listen(64)
+                return s, p
+            except OSError:
+                if s:
+                    s.close()
+    sys.exit("사용할 수 있는 포트를 찾지 못했습니다. 켜 둔 서버 창을 모두 닫고 다시 실행하세요.")
+
+
+def main():
+    global ACTUAL_PORT
+    sock, ACTUAL_PORT = make_listener(PORT)
+    url = f"http://localhost:{ACTUAL_PORT}"
+    print(f"대기표 서버 실행 [{BUILD_ID}]  ->  {url}   (관리 화면은 이 PC에서만)")
+    if ACTUAL_PORT != PORT:
+        print(f"※ {PORT}번 포트는 이미 사용 중(이전 서버가 켜져 있을 수 있음) → {ACTUAL_PORT}번으로 실행합니다.")
+    start_tunnel(ACTUAL_PORT)
+    if not os.environ.get("NO_BROWSER"):
+        threading.Timer(0.7, lambda: webbrowser.open(url)).start()
+    try:
+        while True:
+            conn, addr = sock.accept()
+            threading.Thread(target=serve_conn, args=(conn, addr), daemon=True).start()
+    except KeyboardInterrupt:
+        print("\n종료합니다.")
+
+
+if __name__ == "__main__":
+    main()
