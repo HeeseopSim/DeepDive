@@ -129,7 +129,7 @@ def handle_msg(req, peer):
         items = snap["items"]
         view = lambda x: {"id": x["id"], "name": x["name"], "size": x["size"]}
         return {"ok": True, "current": view(items[0]) if items else None,
-                "next": [view(x) for x in items[1:6]], "more": max(0, len(items) - 6),
+                "next": [view(x) for x in items[1:9]], "more": max(0, len(items) - 9),
                 "count": len(items), "people": snap["totalPeople"]}
     if cmd == "join":
         try:

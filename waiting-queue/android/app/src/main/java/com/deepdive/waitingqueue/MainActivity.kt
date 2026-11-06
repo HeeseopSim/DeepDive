@@ -3,14 +3,16 @@ package com.deepdive.waitingqueue
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.Vibrator
 import android.text.InputType
+import android.text.TextUtils
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -20,22 +22,23 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.json.JSONObject
 import java.util.concurrent.Executors
 
 /**
- * 대기표 모바일 앱: PC 서버(queue_board_pc.py)의 "서버 주소(IP:포트)"에 연결해서
- * 같은 대기 현황을 보고, 대기를 등록하고, 내 순번을 확인한다. (웹뷰 없이 앱 화면으로 직접 그림)
+ * 대기표 모바일 앱: PC 서버(queue_board_pc.py)에 소켓으로 연결해서
+ * 왼쪽에 대기표, 오른쪽에 서버 연결 QR 을 한 화면에 띄운다. (화면 크기에 맞춰 자동 조절, 웹뷰 없음)
  */
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("cfg", Context.MODE_PRIVATE) }
     private val io = Executors.newCachedThreadPool()
     private val handler = Handler(Looper.getMainLooper())
     private var base: String? = null
-    private var notifiedTurn = false
+    private var lastBoard: JSONObject? = null
+    private var scale = 1f
+    private var maxRows = 5
 
     private val BG = Color.parseColor("#0b1220")
     private val PANEL = Color.parseColor("#111b30")
@@ -45,30 +48,19 @@ class MainActivity : Activity() {
     private val BLUE = Color.parseColor("#60a5fa")
     private val AMBER = Color.parseColor("#fbbf24")
 
-    // 공통
     private lateinit var addrLabel: TextView
     private lateinit var connNote: TextView
     private lateinit var setupView: LinearLayout
-    private lateinit var mainView: ScrollView
-    // 연결 화면
+    private lateinit var mainView: LinearLayout
     private lateinit var addrInput: EditText
     private lateinit var setupMsg: TextView
-    // 대기 현황
     private lateinit var nowBg: GradientDrawable
+    private lateinit var nowLab: TextView
     private lateinit var nowNum: TextView
     private lateinit var nowWho: TextView
     private lateinit var listBox: LinearLayout
+    private lateinit var moreView: TextView
     private lateinit var countView: TextView
-    // 내 대기표 / 등록
-    private lateinit var ticketCard: LinearLayout
-    private lateinit var ticketBg: GradientDrawable
-    private lateinit var ticketNum: TextView
-    private lateinit var ticketInfo: TextView
-    private lateinit var regCard: LinearLayout
-    private lateinit var nameInput: EditText
-    private lateinit var sizeInput: EditText
-    private lateinit var regMsg: TextView
-    // 서버 연결용 QR
     private lateinit var qrView: ImageView
     private lateinit var qrText: TextView
 
@@ -80,27 +72,26 @@ class MainActivity : Activity() {
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun px(v: Float) = v * scale
+
     private fun lp(w: Int, h: Int, weight: Float = 0f, top: Int = 0, left: Int = 0) =
         LinearLayout.LayoutParams(w, h, weight).apply { topMargin = dp(top); leftMargin = dp(left) }
 
-    private fun tv(text: String, sp: Float, color: Int, bold: Boolean = false, center: Boolean = false) =
+    /** 기준 해상도(1280x720)의 px 값을 화면 크기에 맞춰 줄이고 늘려서 쓰는 텍스트 */
+    private fun tv(text: String, ref: Float, color: Int, bold: Boolean = false, center: Boolean = false) =
         TextView(this).apply {
             this.text = text
-            textSize = sp
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(ref))
             setTextColor(color)
             if (bold) setTypeface(typeface, Typeface.BOLD)
             if (center) gravity = Gravity.CENTER
         }
 
+    private fun setPx(t: TextView, ref: Float) = t.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(ref))
+
     private fun round(color: Int, r: Int = 18) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = dp(r).toFloat()
-    }
-
-    private fun card(color: Int = PANEL) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        background = round(color)
-        setPadding(dp(16), dp(14), dp(16), dp(14))
     }
 
     private fun input(hint: String) = EditText(this).apply {
@@ -117,142 +108,140 @@ class MainActivity : Activity() {
         if (saved != null) showMain(saved) else showSetup(null)
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val b = base
+        val onMain = b != null && mainView.visibility == View.VISIBLE
+        setContentView(buildUi())
+        if (onMain && b != null) {
+            showMain(b)
+            lastBoard?.let { showBoard(it) }
+        } else {
+            showSetup(null)
+        }
+    }
+
     // ---------------- 화면 구성 ----------------
     private fun buildUi(): View {
+        val dm = resources.displayMetrics
+        val w = dm.widthPixels
+        val h = dm.heightPixels
+        scale = minOf(w / 1280f, h / 720f).coerceIn(0.45f, 1.7f)
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
         }
+
         // 상단 바
         val head = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(8), dp(8), dp(8))
+            setPadding(dp(12), dp(4), dp(6), dp(4))
             setBackgroundColor(PANEL)
         }
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(tv("🏥 대기표", 20f, Color.WHITE, true))
-        addrLabel = tv("", 13f, AMBER).apply { setTextIsSelectable(true) }
-        titles.addView(addrLabel)
-        head.addView(titles, lp(0, WRAP_CONTENT, 1f))
+        head.addView(tv("🏥 대기 현황", 34f, Color.WHITE, true))
+        addrLabel = tv("", 24f, AMBER).apply { setTextIsSelectable(true) }
+        head.addView(addrLabel, lp(0, WRAP_CONTENT, 1f, 0, 14))
+        head.addView(Button(this).apply {
+            text = "＋ 등록"
+            setOnClickListener { registerDialog() }
+        })
         head.addView(Button(this).apply {
             text = "서버 변경"
             setOnClickListener { showSetup(null) }
         })
         root.addView(head, lp(MATCH_PARENT, WRAP_CONTENT))
-        connNote = tv("", 13f, Color.parseColor("#fca5a5")).apply { setPadding(dp(14), dp(4), dp(14), dp(4)) }
-        root.addView(connNote, lp(MATCH_PARENT, WRAP_CONTENT))
+        connNote = tv("", 22f, Color.parseColor("#fca5a5"))
+        root.addView(connNote, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 0, 12))
 
         // --- 연결 화면 ---
         setupView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(20), dp(20), dp(20))
+            setPadding(dp(20), dp(16), dp(20), dp(16))
             visibility = View.GONE
         }
-        setupView.addView(tv("PC 프로그램 화면에 표시된\n서버 주소(IP:포트)를 입력하거나 QR을 스캔하세요.", 16f, Color.WHITE))
+        setupView.addView(tv("PC 프로그램 화면에 표시된\n서버 주소(IP:포트)를 입력하거나 QR을 스캔하세요.", 28f, Color.WHITE))
         setupView.addView(Button(this).apply {
             text = "QR 스캔으로 연결"
             setOnClickListener { scan() }
-        }, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 18))
+        }, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 14))
         addrInput = input("예: 192.168.0.10:9000").apply {
             imeOptions = EditorInfo.IME_ACTION_GO
             setOnEditorActionListener { _, _, _ -> tryConnect(text.toString()); true }
         }
-        setupView.addView(addrInput, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 14))
+        setupView.addView(addrInput, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
         setupView.addView(Button(this).apply {
             text = "연결"
             setOnClickListener { tryConnect(addrInput.text.toString()) }
-        }, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
-        setupMsg = tv("", 14f, AMBER)
-        setupView.addView(setupMsg, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 14))
-        setupView.addView(tv("※ 폰과 PC가 같은 Wi-Fi(또는 PC의 핫스팟)에 연결돼 있어야 하고, 입력한 IP가 PC 화면의 주소와 같아야 합니다.", 12f, MUTED),
-            lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+        }, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 4))
+        setupMsg = tv("", 24f, AMBER)
+        setupView.addView(setupMsg, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
+        setupView.addView(tv("※ 폰과 PC가 같은 Wi-Fi(또는 PC의 핫스팟)에 연결돼 있어야 하고, 입력한 IP:포트가 PC 화면의 주소와 같아야 합니다.", 20f, MUTED),
+            lp(MATCH_PARENT, WRAP_CONTENT, 0f, 8))
         root.addView(setupView, lp(MATCH_PARENT, 0, 1f))
 
-        // --- 메인 화면 ---
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+        // --- 메인: 왼쪽 대기표 / 오른쪽 QR ---
+        mainView = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            visibility = View.GONE
         }
-        // 현재 호출
-        nowBg = round(GREEN, 22)
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
+        nowBg = round(GREEN, 20)
         val now = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
             background = nowBg
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setPadding(dp(8), dp(6), dp(8), dp(6))
         }
-        now.addView(tv("현재 호출", 15f, Color.WHITE, false, true))
-        nowNum = tv("-", 64f, Color.WHITE, true, true)
-        now.addView(nowNum)
-        nowWho = tv("", 20f, Color.WHITE, true, true)
-        now.addView(nowWho)
-        body.addView(now, lp(MATCH_PARENT, WRAP_CONTENT))
-        // 다음 순서
-        val next = card()
-        next.addView(tv("다음 순서", 14f, MUTED))
-        listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        next.addView(listBox, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 4))
-        countView = tv("", 14f, MUTED)
-        next.addView(countView, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
-        body.addView(next, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
-        // 내 대기표
-        ticketBg = round(Color.parseColor("#1d4ed8"), 18)
-        ticketCard = LinearLayout(this).apply {
+        nowLab = tv("현재 호출", 26f, Color.WHITE, false, true)
+        nowNum = tv("-", 150f, Color.WHITE, true, true).apply { maxLines = 1; includeFontPadding = false }
+        nowWho = tv("", 40f, Color.WHITE, true, true).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+        now.addView(nowLab, lp(MATCH_PARENT, WRAP_CONTENT))
+        now.addView(nowNum, lp(MATCH_PARENT, WRAP_CONTENT))
+        now.addView(nowWho, lp(MATCH_PARENT, WRAP_CONTENT))
+        left.addView(now, lp(MATCH_PARENT, 0, 2f))
+
+        val next = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = ticketBg
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            visibility = View.GONE
+            background = round(PANEL)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
-        ticketCard.addView(tv("내 대기표", 14f, Color.WHITE, false, true))
-        ticketNum = tv("", 52f, Color.WHITE, true, true)
-        ticketCard.addView(ticketNum)
-        ticketInfo = tv("", 18f, Color.WHITE, true, true)
-        ticketCard.addView(ticketInfo)
-        ticketCard.addView(Button(this).apply {
-            text = "대기 취소"
-            setOnClickListener { confirmCancel() }
-        }, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
-        body.addView(ticketCard, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
-        // 등록
-        regCard = card()
-        regCard.addView(tv("대기 등록", 18f, Color.WHITE, true))
-        nameInput = input("이름")
-        regCard.addView(nameInput, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
-        sizeInput = input("인원").apply {
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setText("1")
-        }
-        regCard.addView(sizeInput, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 4))
-        regCard.addView(Button(this).apply {
-            text = "대기표 받기"
-            textSize = 18f
-            setOnClickListener { register() }
-        }, lp(MATCH_PARENT, dp(56), 0f, 10))
-        regMsg = tv("", 14f, AMBER)
-        regCard.addView(regMsg, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
-        body.addView(regCard, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
-        // 서버 연결 QR (다른 폰이 이 QR을 스캔해 같은 서버에 연결)
-        val qrCard = card()
-        qrCard.addView(tv("📱 서버 연결 QR", 18f, Color.WHITE, true))
-        qrCard.addView(tv("다른 폰에서 앱의 'QR 스캔으로 연결'로 찍으면 같은 서버에 연결됩니다.", 13f, MUTED),
-            lp(MATCH_PARENT, WRAP_CONTENT, 0f, 2))
-        qrView = ImageView(this).apply {
-            setBackgroundColor(Color.WHITE)
-            adjustViewBounds = true
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            maxHeight = (resources.displayMetrics.widthPixels * 0.7).toInt()
+        next.addView(tv("다음 순서", 26f, MUTED))
+        listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        next.addView(listBox, lp(MATCH_PARENT, 0, 1f, 2))
+        moreView = tv("", 24f, MUTED)
+        next.addView(moreView, lp(MATCH_PARENT, WRAP_CONTENT))
+        countView = tv("", 30f, Color.WHITE, true)
+        next.addView(countView, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 2))
+        left.addView(next, lp(MATCH_PARENT, 0, 3f, 8))
+        mainView.addView(left, lp(0, MATCH_PARENT, 3f))
+
+        // 오른쪽 QR
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = round(PANEL)
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
-        qrCard.addView(qrView, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
-        qrText = tv("", 14f, AMBER, false, true).apply { setTextIsSelectable(true) }
-        qrCard.addView(qrText, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 6))
-        body.addView(qrCard, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 10))
-
-        mainView = ScrollView(this).apply {
-            addView(body)
-            visibility = View.GONE
+        right.addView(tv("📱 QR로 연결", 30f, Color.WHITE, true, true), lp(MATCH_PARENT, WRAP_CONTENT))
+        val qrSide = minOf(w * 0.36f - dp(40), (h - dp(110)) * 0.62f).toInt().coerceAtLeast(dp(120))
+        qrView = ImageView(this).apply {
+            setBackgroundColor(Color.WHITE)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(6), dp(6), dp(6), dp(6))
         }
+        right.addView(qrView, lp(qrSide, qrSide, 0f, 8))
+        qrText = tv("", 24f, AMBER, false, true).apply { setTextIsSelectable(true) }
+        right.addView(qrText, lp(MATCH_PARENT, WRAP_CONTENT, 0f, 8))
+        mainView.addView(right, lp(0, MATCH_PARENT, 2f, 0, 8))
         root.addView(mainView, lp(MATCH_PARENT, 0, 1f))
+
+        // 화면 높이에 맞춰 보여 줄 대기 줄 수 계산
+        val listH = (h - dp(110)) * 0.6f - px(120f)
+        maxRows = (listH / px(56f)).toInt().coerceIn(1, 8)
         return root
     }
 
@@ -268,13 +257,12 @@ class MainActivity : Activity() {
 
     private fun showMain(b: String) {
         base = b
-        notifiedTurn = false
         setupView.visibility = View.GONE
         mainView.visibility = View.VISIBLE
         addrLabel.text = "서버 $b"
         qrText.text = "daegi://$b"
         try {
-            qrView.setImageBitmap(Qr.bitmap("daegi://$b"))
+            qrView.setImageBitmap(Qr.bitmap("daegi://$b", 900))
         } catch (e: Exception) {
             qrText.text = "QR 생성 오류: ${e.message}"
         }
@@ -367,12 +355,9 @@ class MainActivity : Activity() {
             try {
                 val board = call(b, JSONObject().put("cmd", "board"))
                 if (!board.optBoolean("ok")) throw RuntimeException(board.optString("error", "응답 오류"))
-                val tid = prefs.getInt("ticketId", 0)
-                val st = if (tid > 0) call(b, JSONObject().put("cmd", "status").put("id", tid)) else null
                 runOnUiThread {
                     connNote.text = ""
                     showBoard(board)
-                    showTicket(st)
                 }
             } catch (e: Exception) {
                 runOnUiThread {
@@ -383,125 +368,89 @@ class MainActivity : Activity() {
     }
 
     private fun showBoard(board: JSONObject) {
+        lastBoard = board
         val cur = board.optJSONObject("current")
         if (cur == null) {
             nowBg.setColor(GRAY)
+            nowLab.text = ""
             nowNum.text = "대기 없음"
-            nowNum.textSize = 30f
+            setPx(nowNum, 64f)
             nowWho.text = ""
         } else {
             nowBg.setColor(GREEN)
+            nowLab.text = "현재 호출"
             nowNum.text = "${cur.optInt("id")}번"
-            nowNum.textSize = 64f
+            setPx(nowNum, 150f)
             nowWho.text = "${cur.optString("name")} 님 · ${cur.optInt("size")}명"
         }
         listBox.removeAllViews()
         val next = board.optJSONArray("next")
         val n = next?.length() ?: 0
-        for (i in 0 until n) {
+        val show = minOf(n, maxRows)
+        for (i in 0 until show) {
             val o = next!!.getJSONObject(i)
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(5), 0, dp(5))
             }
-            row.addView(tv("${o.optInt("id")}번", 20f, BLUE, true), lp(dp(72), WRAP_CONTENT))
-            row.addView(tv(o.optString("name"), 18f, Color.WHITE), lp(0, WRAP_CONTENT, 1f))
-            row.addView(tv("${o.optInt("size")}명", 16f, MUTED))
-            listBox.addView(row, lp(MATCH_PARENT, WRAP_CONTENT))
+            row.addView(tv("${o.optInt("id")}번", 34f, BLUE, true).apply { maxLines = 1 }, lp(px(110f).toInt(), WRAP_CONTENT))
+            row.addView(tv(o.optString("name"), 32f, Color.WHITE).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }, lp(0, WRAP_CONTENT, 1f))
+            row.addView(tv("${o.optInt("size")}명", 28f, MUTED).apply { maxLines = 1 })
+            listBox.addView(row, lp(MATCH_PARENT, 0, 1f))
         }
-        val more = board.optInt("more", 0)
         val total = board.optInt("count", 0)
-        countView.text = (if (total <= 1) "다음 대기가 없습니다" else if (more > 0) "외 ${more}팀 대기 중" else "") +
-            "\n대기 ${total}팀 · ${board.optInt("people", 0)}명"
+        val rest = total - 1 - show
+        moreView.text = when {
+            total <= 1 -> "다음 대기가 없습니다"
+            rest > 0 -> "외 ${rest}팀 대기 중"
+            else -> ""
+        }
+        countView.text = "대기 ${total}팀 · ${board.optInt("people", 0)}명"
     }
 
-    private fun showTicket(st: JSONObject?) {
-        val tid = prefs.getInt("ticketId", 0)
-        if (tid == 0) {
-            ticketCard.visibility = View.GONE
-            regCard.visibility = View.VISIBLE
-            return
+    // ---------------- 대기 등록 (상단 버튼) ----------------
+    private fun registerDialog() {
+        val b = base ?: run { showSetup("먼저 서버에 연결해 주세요."); return }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
         }
-        if (st == null) return
-        if (st.optBoolean("waiting")) {
-            val pos = st.optInt("position")
-            ticketCard.visibility = View.VISIBLE
-            regCard.visibility = View.GONE
-            ticketNum.text = "${tid}번"
-            if (pos == 1) {
-                ticketBg.setColor(GREEN)
-                ticketInfo.text = "🔔 곧 입장 차례입니다!"
-                if (!notifiedTurn) {
-                    notifiedTurn = true
+        val name = EditText(this).apply { hint = "이름"; setSingleLine() }
+        val size = EditText(this).apply {
+            hint = "인원"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText("1")
+        }
+        box.addView(name)
+        box.addView(size)
+        AlertDialog.Builder(this)
+            .setTitle("대기 등록")
+            .setView(box)
+            .setPositiveButton("대기표 받기") { _, _ ->
+                val nm = name.text.toString()
+                val sz = size.text.toString().trim().toIntOrNull() ?: 0
+                io.execute {
                     try {
-                        @Suppress("DEPRECATION")
-                        (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(600)
-                    } catch (e: Exception) { /* 진동 불가 기기는 무시 */ }
-                }
-            } else {
-                ticketBg.setColor(Color.parseColor("#1d4ed8"))
-                ticketInfo.text = "내 앞 ${st.optInt("teamsAhead")}팀 (${st.optInt("peopleAhead")}명)"
-            }
-        } else {
-            // 호출되었거나 취소된 대기표
-            prefs.edit().remove("ticketId").remove("ticketToken").apply()
-            notifiedTurn = false
-            ticketCard.visibility = View.GONE
-            regCard.visibility = View.VISIBLE
-            regMsg.text = "대기표 ${tid}번이 호출되었거나 취소되었습니다."
-        }
-    }
-
-    // ---------------- 등록 / 취소 ----------------
-    private fun register() {
-        val b = base ?: return
-        val name = nameInput.text.toString()
-        val size = sizeInput.text.toString().trim().toIntOrNull() ?: 0
-        regMsg.text = "등록 중…"
-        io.execute {
-            try {
-                val json = call(b, JSONObject().put("cmd", "join").put("name", name).put("size", size))
-                runOnUiThread {
-                    if (json.optBoolean("ok")) {
-                        prefs.edit().putInt("ticketId", json.optInt("id")).putString("ticketToken", json.optString("token")).apply()
-                        notifiedTurn = false
-                        regMsg.text = ""
-                        nameInput.setText("")
-                        poll()
-                    } else {
-                        regMsg.text = json.optString("error", "등록하지 못했습니다")
+                        val r = call(b, JSONObject().put("cmd", "join").put("name", nm).put("size", sz))
+                        runOnUiThread {
+                            val msg = if (r.optBoolean("ok")) "대기번호 ${r.optInt("id")}번이 발급되었습니다."
+                            else r.optString("error", "등록하지 못했습니다")
+                            AlertDialog.Builder(this).setMessage(msg).setPositiveButton("확인", null).show()
+                            poll()
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            AlertDialog.Builder(this).setMessage("서버에 연결하지 못했습니다 (${e.javaClass.simpleName})")
+                                .setPositiveButton("확인", null).show()
+                        }
                     }
                 }
-            } catch (e: Exception) {
-                runOnUiThread { regMsg.text = "서버에 연결하지 못했습니다 (${e.javaClass.simpleName})" }
             }
-        }
-    }
-
-    private fun confirmCancel() {
-        AlertDialog.Builder(this)
-            .setTitle("대기 취소")
-            .setMessage("대기를 취소할까요?")
-            .setPositiveButton("취소하기") { _, _ -> cancel() }
-            .setNegativeButton("닫기", null)
+            .setNegativeButton("취소", null)
             .show()
-    }
-
-    private fun cancel() {
-        val b = base ?: return
-        val id = prefs.getInt("ticketId", 0)
-        val tok = prefs.getString("ticketToken", "") ?: ""
-        io.execute {
-            try {
-                call(b, JSONObject().put("cmd", "cancel").put("id", id).put("token", tok))
-            } catch (e: Exception) { /* 다음 갱신에서 상태 확인 */ }
-            runOnUiThread {
-                prefs.edit().remove("ticketId").remove("ticketToken").apply()
-                notifiedTurn = false
-                poll()
-            }
-        }
     }
 
     override fun onDestroy() {
