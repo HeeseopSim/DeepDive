@@ -1217,13 +1217,52 @@ footer{padding:16px 30px 24px}
 .le li{padding:9px 8px 9px 10px;gap:8px}
 .wk-head{padding:12px 12px 10px}
 html,body{max-width:100vw}
+
+/* ver 6.2: subject colour marks - no shadow, thin outline */
+.sub i{width:13px;height:13px;border:1.5px solid var(--ink);box-shadow:none}
+.sub,.sub.on{box-shadow:none}
+.sub.on{border-width:2px;padding:4px 12px 4px 9px}
+.sw,.sw.on{box-shadow:none;border:1.5px solid var(--ink)}
+.sw.on{outline:2px solid var(--ink);outline-offset:2px;transform:none}
+.stt .sd{width:12px;height:12px;border:1.5px solid var(--ink);box-shadow:none}
+.stt td.bc i{border:1.5px solid var(--ink)}
+.tsub,#addSub{box-shadow:none;text-shadow:none}
+
+/* ver 6.2: spacing pass */
+#pop{width:min(420px,92vw);padding:22px 24px}
+#popTitle{font-size:14px;margin-bottom:14px;white-space:nowrap}
+.popsubs{gap:8px;margin-bottom:14px}
+.popsubs .sub{padding:4px 11px 4px 8px;font-size:12.5px}
+#pop input[type=text],#popIn{margin-bottom:12px}
+.subbar{padding:16px 24px 14px;gap:14px 12px}
+.subchips{gap:10px 10px}
+.sub{padding:6px 14px 6px 10px;font-size:13px}
+.top{padding:20px 32px 14px;gap:14px 20px}
+#addForm{padding:20px 24px 4px;gap:12px}
+#addForm+*{margin-top:4px}
+.todo{margin:0 0 4px}
+main{gap:24px}
+
+/* ver 6.3: timetable blocks - no dark inner shading, thin black outline on exposed edges only */
+.blk .glow,.blk .glow.plan{--k:#111;box-shadow:inset 1.5px 0 0 color-mix(in srgb,var(--k) calc(var(--l,0)*100%),transparent),inset -1.5px 0 0 color-mix(in srgb,var(--k) calc(var(--r,0)*100%),transparent),inset 0 1.5px 0 color-mix(in srgb,var(--k) calc(var(--t,0)*100%),transparent),inset 0 -1.5px 0 color-mix(in srgb,var(--k) calc(var(--bt,0)*100%),transparent)}
+
+/* ver 6.4: outline on every edge of every block piece */
+.blk .glow,.blk .glow.plan{--l:1 !important;--r:1 !important;--t:1 !important;--bt:1 !important}
+
+/* ver 6.6: weekday / weekend week sheets, auto-fitted ruled lines */
+.wk .wl{--ls:1;overflow:hidden}
+.wk.p .wl{height:100%;column-fill:auto}
+.wk.l .wd{display:flex;flex-direction:column}
+.wk.l .wl{flex:1;min-height:0}
+.pg .wk .wl .ln,.pg.land .wk .wl .ln,.pg.port .wk .wl .ln{font-size:calc(11.5px*var(--ls));min-height:calc(20px*var(--ls));height:auto;padding-top:calc(3px*var(--ls));padding-bottom:calc(2px*var(--ls));break-inside:avoid}
+.pg.land .wk .wl .ln{min-height:calc(26px*var(--ls))}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="goo" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation=".75" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 14 -5"/></filter></svg>
 <header class="top">
   <div class="lhead">
-    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 6.5</em></div>
+    <div class="brand"><span id="logo"></span><div><b>HL</b></div><em class="beta">ver 6.6</em></div>
     <div class="tabs" id="tabs"><button data-v="day" class="on">일간</button><button data-v="week">주간</button><button data-v="month">월간</button><button data-v="year">연간</button></div>
   </div>
   <div class="datenav">
@@ -1356,40 +1395,10 @@ html,body{max-width:100vw}
   <div class="sp-row"><span>🖱️ 효과음</span><input type="range" id="vSfx" min="0" max="100" step="1"><b id="vSfxN">0</b></div>
 </div>
 <div id="printView" class="hidden">
-  <style id="pageStyle">@page{size:A4 portrait;margin:0}
-/* ver 6.2: subject colour marks - no shadow, thin outline */
-.sub i{width:13px;height:13px;border:1.5px solid var(--ink);box-shadow:none}
-.sub,.sub.on{box-shadow:none}
-.sub.on{border-width:2px;padding:4px 12px 4px 9px}
-.sw,.sw.on{box-shadow:none;border:1.5px solid var(--ink)}
-.sw.on{outline:2px solid var(--ink);outline-offset:2px;transform:none}
-.stt .sd{width:12px;height:12px;border:1.5px solid var(--ink);box-shadow:none}
-.stt td.bc i{border:1.5px solid var(--ink)}
-.tsub,#addSub{box-shadow:none;text-shadow:none}
-
-/* ver 6.2: spacing pass */
-#pop{width:min(420px,92vw);padding:22px 24px}
-#popTitle{font-size:14px;margin-bottom:14px;white-space:nowrap}
-.popsubs{gap:8px;margin-bottom:14px}
-.popsubs .sub{padding:4px 11px 4px 8px;font-size:12.5px}
-#pop input[type=text],#popIn{margin-bottom:12px}
-.subbar{padding:16px 24px 14px;gap:14px 12px}
-.subchips{gap:10px 10px}
-.sub{padding:6px 14px 6px 10px;font-size:13px}
-.top{padding:20px 32px 14px;gap:14px 20px}
-#addForm{padding:20px 24px 4px;gap:12px}
-#addForm+*{margin-top:4px}
-.todo{margin:0 0 4px}
-main{gap:24px}
-
-/* ver 6.3: timetable blocks - no dark inner shading, thin black outline on exposed edges only */
-.blk .glow,.blk .glow.plan{--k:#111;box-shadow:inset 1.5px 0 0 color-mix(in srgb,var(--k) calc(var(--l,0)*100%),transparent),inset -1.5px 0 0 color-mix(in srgb,var(--k) calc(var(--r,0)*100%),transparent),inset 0 1.5px 0 color-mix(in srgb,var(--k) calc(var(--t,0)*100%),transparent),inset 0 -1.5px 0 color-mix(in srgb,var(--k) calc(var(--bt,0)*100%),transparent)}
-
-/* ver 6.4: outline on every edge of every block piece */
-.blk .glow,.blk .glow.plan{--l:1 !important;--r:1 !important;--t:1 !important;--bt:1 !important}
-</style>
+  <style id="pageStyle">@page{size:A4 portrait;margin:0}</style>
   <div class="pv-bar"><b>🖨 프린트 (A4)</b>
     <select id="pvKind"><option value="day">일간</option><option value="week">주간</option><option value="month">월간</option><option value="year">연간</option></select>
+    <select id="pvRange" title="주간 계획표 범위" style="display:none"><option value="all">전체 (월~일)</option><option value="wd">평일 (월~금)</option><option value="we">주말 (토·일)</option></select>
     <select id="pvOri"><option value="p">세로</option><option value="l">가로</option></select>
     <select id="pvBase"><option value="cur">보고 있는 날짜 기준</option><option value="today">오늘 기준</option></select>
     <select id="pvCell" title="타임테이블 칸 크기 (형광펜으로 칠할 때)"><option value="0">칸 작게</option><option value="1" selected>칸 보통</option><option value="2">칸 크게</option></select>
@@ -3040,18 +3049,42 @@ function daySheet(k,land){
   else body=`<div class="pg-b day p"><div class="c2">${goals}${todos}</div><div class="c1" style="width:${tz.gw+34}px">${ttHtml(d,hpx,tz.gw)}${memo}</div></div>`;
   return head+body;
 }
+let pvWeek=[];
 function weekSheet(k,land){
   const mon=monOf(parseKey(k)),wk=wkData(keyOf(mon),false),sun=addDays(mon,6);
-  const head=pgHead('주간 계획표',`${addDays(mon,3).getFullYear()}년 ${weekLabel(mon)}`,`${fmtMD(mon)} – ${fmtMD(sun)}`,ddHtml(x=>x>=keyOf(mon)&&x<=keyOf(sun)));
+  const rg=($('#pvRange')&&$('#pvRange').value)||'all';
+  const idx=rg==='wd'?[0,1,2,3,4]:rg==='we'?[5,6]:[0,1,2,3,4,5,6];
+  const a0=addDays(mon,idx[0]),a1=addDays(mon,idx[idx.length-1]);
+  const tag=rg==='wd'?'평일 계획표':rg==='we'?'주말 계획표':'주간 계획표';
+  const head=pgHead(tag,`${addDays(mon,3).getFullYear()}년 ${weekLabel(mon)}`,`${fmtMD(a0)} – ${fmtMD(a1)}`,ddHtml(x=>x>=keyOf(a0)&&x<=keyOf(a1)));
   const names=['월','화','수','목','금','토','일'];
-  const days=[];
-  for(let i=0;i<7;i++){
+  const days=[];pvWeek=[];
+  idx.forEach(i=>{
     const dt=addDays(mon,i),dk=keyOf(dt),d=dayBy(dk,false);
     const dd=ddOn(dk).map(x=>`<div class="dd2">🔥 ${esc(x.t)}</div>`).join('');
-    days.push(`<div class="wd${i>=5?' we':''}"><div class="wdh"><b>${names[i]}</b> ${dt.getMonth()+1}/${dt.getDate()}${dd}</div><div class="wl">${pgLines(d.todos,land?15:8,false,true)}</div></div>`);
-  }
+    pvWeek.push(d.todos||[]);
+    days.push(`<div class="wd${i>=5?' we':''}"><div class="wdh"><b>${names[i]}</b> ${dt.getMonth()+1}/${dt.getDate()}${dd}</div><div class="wl"></div></div>`);
+  });
   const top=`<div class="wtop">${pgBox('🎯 주간 목표',pgLines(wk?wk.goals:[],land?5:6,false,true))}${pgBox('📝 이번 주 할 일',pgLines(wk?wk.tasks:[],land?5:6,false,true))}</div>`;
-  return head+`<div class="pg-b wk ${land?'l':'p'}">${top}<div class="wdays">${days.join('')}</div></div>`;
+  const grid=land?`grid-template-columns:repeat(${idx.length},1fr)`:`grid-template-rows:repeat(${idx.length},1fr)`;
+  return head+`<div class="pg-b wk ${land?'l':'p'}">${top}<div class="wdays" style="${grid}">${days.join('')}</div></div>`;
+}
+// fill every day box with exactly as many ruled lines as fit on the A4 page; shrink the text a little if entries wrap
+function fitWeek(land){
+  const cols=land?1:2,base=land?26:20;
+  document.querySelectorAll('#pvPage .wl').forEach((wl,i)=>{
+    const todos=pvWeek[i]||[];
+    const fits=()=>wl.scrollHeight<=wl.clientHeight+1&&wl.scrollWidth<=wl.clientWidth+1;
+    let rows=3,ok=false;
+    for(let sc=1;sc>=.75&&!ok;sc-=.05){
+      wl.style.setProperty('--ls',sc.toFixed(2));
+      rows=Math.max(3,Math.floor(wl.clientHeight/(base*sc)));
+      wl.innerHTML=pgLines(todos,rows*cols,false,true);
+      ok=fits();
+    }
+    // still too long even at the smallest size: drop the last lines (shown as "…") until it fits
+    for(let n=rows*cols-1;!ok&&n>=cols;n--){wl.innerHTML=pgLines(todos,n,false,true);ok=fits()}
+  });
 }
 function monthSheet(k,land){
   const d=parseKey(k),y=d.getFullYear(),m=d.getMonth(),ym=ymOf(y,m),first=new Date(y,m,1),start=monOf(first),n=dim(y,m);
@@ -3107,6 +3140,9 @@ function renderPrint(){
   pg.className='pv-page pg '+(o.land?'land':'port')+(o.bw?' bw':'');
   pg.style.width=dim2[0]+'px';pg.style.height=dim2[1]+'px';
   pg.innerHTML=html;
+  $('#pvRange').style.display=o.kind==='week'?'':'none';
+  pg.style.setProperty('--pz','1');
+  if(o.kind==='week')fitWeek(o.land);
   $('#pageStyle').textContent=`@page{size:A4 ${o.land?'landscape':'portrait'};margin:0}`;
   fitPrint();
 }
@@ -3123,7 +3159,7 @@ function closePrint(){pv.classList.add('hidden')}
 $('#prBtn').onclick=openPrint;
 $('#pvClose').onclick=closePrint;
 $('#pvPrint').onclick=()=>{renderPrint();window.print()};
-['#pvKind','#pvOri','#pvBase','#pvColor','#pvCell'].forEach(s=>$(s).onchange=renderPrint);
+['#pvKind','#pvRange','#pvOri','#pvBase','#pvColor','#pvCell'].forEach(s=>$(s).onchange=renderPrint);
 addEventListener('resize',()=>{if(!pv.classList.contains('hidden'))fitPrint()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!pv.classList.contains('hidden'))closePrint()});
 
